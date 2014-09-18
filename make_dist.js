@@ -13,16 +13,14 @@ var fs = require('fs')
     ]
   ;
 
-/* wrap everything in function */
 fs.writeFileSync('./dairy.js', '');
 fs.writeFileSync('./dairy.min.js', '');
 
-/* append MONICA JS files */
 for (var f = 0; f < files.length; f++) {
 
   fs.appendFileSync('./dairy.min.js', uglify.minify('./src/' + files[f] + '.js').code + '\n\n');
-
   fs.appendFileSync('./dairy.js', fs.readFileSync('./src/' + files[f] + '.js', { encoding: 'utf8' }) + '\n\n');
+
 }
 
 
