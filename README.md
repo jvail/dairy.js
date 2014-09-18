@@ -1,7 +1,7 @@
 dairy.js
 ========
 
-dairy.js is a JavaScript library covering routines to simulate dairy cow herds for both productive cows and 
+dairy.js is a JavaScript library covvering routines to simulate dairy cow herds for both productive cows and 
 (still under development) young stock:
 
   * milk yield and solids
