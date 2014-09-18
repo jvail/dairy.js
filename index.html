@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html> 
+<head>
+<meta charset='utf-8'>
+<title>dairy.js</title>
+<link rel='stylesheet' href='http://code.jquery.com/ui/1.10.4/themes/smoothness/jquery-ui.css'>
+<link rel='stylesheet' href='3rdparty/jquery.bxslider/jquery.bxslider.css'>
+
+<script src='http://code.jquery.com/jquery-2.1.1.min.js'></script>
+<script src='http://code.jquery.com/ui/1.10.4/jquery-ui.min.js'></script>
+<script src='3rdparty/jquery.flot/jquery.flot.min.js'></script>
+<script src='3rdparty/jquery.flot/jquery.flot.categories.min.js'></script>
+<script src='3rdparty/jquery.flot/jquery.flot.stack.min.js'></script>
+<script src='3rdparty/jquery.bxslider/jquery.bxslider.js'></script>
+<script src='3rdparty/spin.js'></script>
+<script src='3rdparty/simple_statistics.js'></script>
+<script src='index.ui.js'></script>
+<script src='index.js'></script>
+<script src='dairy.js'></script>
+<style>
+
+body {
+  font-size: 70%;
+  font-family: Georgia, serif  !important;
+  background-color: white;
+  margin: 0 0 0 0;
+}
+
+#header-div {
+  width: 100%;
+  height: 50px;
+  background: #336699;
+  margin: 0 0 0 0;
+}
+
+#header-title {
+  font-family: Arial  !important;
+  font-size: 250%;
+  color: whitesmoke;
+  text-decoration: none;
+  font-style: normal;
+  padding: 10px;
+  margin-top: 0px;
+  margin-left: 10px;
+}
+
+#subheader-title {
+  font-family: Arial  !important;
+  font-size: 60%;
+  color: whitesmoke;
+  text-decoration: none;
+  font-style: normal;
+  padding: 0px;
+  margin-top: 0px;
+  margin-left: 0px;
+}
+
+.title, .plot-title {
+  font-family: Georgia, serif  !important;
+  font-size: 150%;
+  color: DarkSlateGray ;
+  text-decoration: none;
+  font-style: italic;  
+}
+
+#section-1 {
+  font-family: Arial  !important;
+  font-size: 120%;
+  color: black ;
+  text-decoration: none;
+  font-style: normal;
+  margin-left: 20px;
+}
+
+#download {
+  font-family: Georgia  !important;
+  font-size: 110%;
+  color: DarkSlateGray;
+  font-style: normal;
+  padding: 10px;
+  margin-top: 15px;
+  margin-left: 15px;
+}
+
+#progress {
+  font-family: Georgia  !important;
+  font-size: 110%;
+  color: DarkSlateGray;
+  font-style: normal;
+  padding: 10px;
+  margin-top: 15px;
+  margin-left: 15px;
+}
+
+label {
+  font-family: Georgia, serif  !important;
+  font-size: 100%;
+  color: DarkSlateGray;
+  text-decoration: none;
+  font-style: italic; 
+  white-space:nowrap;
+}
+.feed-header-p {
+  white-space:nowrap;
+}
+
+.plot-slide {
+  width: 900px;
+  height: 450px;
+}
+
+.plot {
+  width: 800px;
+  height: 380px;
+  margin: 0 auto;
+}
+
+.section-link {
+  background-color: #336699;
+  font-size: 200%;
+  color: whitesmoke;
+  text-decoration: none;
+  font-style: italic;
+  margin-left: 10px;
+}
+
+#section-1 > p {
+  font-size: 110%;
+}
+
+.link {
+  text-decoration: none;
+  color: whitesmoke;
+  font-style: normal;
+}
+
+.section-link.active {
+  text-decoration: underline;
+}
+
+#section-links {
+  background-color: #336699;
+  padding: 10px;
+}
+
+#sections>a:hover {
+  color: grey;
+}
+
+.section {
+  width: 100%;
+  //height: 700px;
+}
+
+.section.hidden {
+  display: none;
+  visibility: hidden;
+}
+
+.spinner, select {
+  width: 158px;
+}
+
+select {
+  width: 185px;
+}
+
+</style>
+</head>
+<body>
+
+<div id='header-div'>
+  <p id='header-title'><a href="https://github.com/jvail/dairy.js" class="link">dairy.js</a><br>
+    <!-- <span id='subheader-title'>feed evaluation, herd structure, milk yield, requirements, intake, grouping & diet optimization</span> -->
+  </p>
+</div>
+
+<div id='section-links'>
+  <a href="#section-1" class="section-link">Help</a>
+  <a href="#section-2" class="section-link">Settings</a>
+  <a href="#section-3" class="section-link active">Results</a>
+</div>
+<div id='section-1' class='section hidden' style='width:800px;'>
+  <p>This is only an brief illustration of the library's functionality: feed evaluation, herd structure, milk yield, requirements, intake, grouping & diet optimization. Tested only with the latest (09.2014) Firefox & Chrome browser. Additinal output (lmfit&GLPK) is visible in the browser's console (CTRL+SHIFT+J).
+  <p class="title">Usage</p>
+  <p>Choose your settings and click "Results". This will trigger the follwing calculations. Details of the implementation and references to the original publications can be found in the source code availbale from <a href="https://github.com/jvail/dairy.js">https://github.com/jvail/dairy.js</a>.</p>
+  <p class="title">Curve fitting</p>
+  <p>The Wood lactation curve is fitted to the provided lactation data to obtain the three parameters of the Wood curve. A best fit is achived
+    with a Levenberg-Marquardt least-squares minimization implemented in <a href="https://github.com/jvail/lmfit.js">lmfit</a>.</p>
+  <p class="title">Herd structure</p>
+  <p>The structure of the herd (demographics) is calculated to estimate the percentage of cows of parities 1 to 3 (>2). 
+    The simulation adjusts heifer availability (either "sell or buy") if there are too many or not enough heifers available to achiev the target herd size. 
+    Currently there is not adjustment for a seasonal distribution of calvings. The cows are then evently distrituted throughout calving interval (days post partum).</p>
+  <p class="title">Milk & milk solids</p>
+  <p>The obtained Wood parameters are used to calculate milk yield and solids. Both are adjusted for parity. An adjustment parameter for milk yield of parity 1
+    is available in "Settings". This adjusts the inital milk yield level for parity 1 relative to the inital milk yield of a mature cow.</p>
+  <p class="title">Requirements & intake</p>
+  <p>Both energy and protein requirements for each cow are calculated using the chosen system (DE, FI, FR, GB). The intake capacity is calculated with a fill value based system from INRA. Therefore the units of intake capacity are fill values (LFU).<p>
+  <p class="title">Grouping</p>
+  <p>The cows are grouped as such that the variance of requirement devided by intake capacity in minimized within groups: Cows within groups require a "similar" 
+    energy and protein density in their diet. This is achived by applying the k-means algorithm. Since the result of k-means depends on the initially chosen
+    points the results of two runs with equal settings might slightly vary. To prevent this k-means runs several times and the best solution is returned.</p>
+  <p class="title">Diet</p>
+  <p>The diets are calculated with a linear program using <a href="https://github.com/jvail/glpk.js">GLPK</a> for an average cow within each group. Diets are optimized as such that the total sum of relative (to the cow's requirements) violations (nutrients in diet / nutrients required) is minimized (Nutrients are energy and protein) subject to the following constraints: feed intake equals intake capacity, the RNB of the diet is within the upper and lower bound of the Ruminal Nitrogen Balance and concentrate dy matter in diet is below the maximum (see settings). The violations of energy requirments are weighted by the factor 10 compared to protein. Although the system specific protein requirements are calculate and presented the diet always uses only the German protein system (uCP, RNB). Energy is always expressed in the chosen system's unit. This is due to requirements and limitations in the original project (<a href="http://www.solidairy.eu/">SOLID</a>) this library was developed for.</p>
+</div>
+<div id='section-2' class='section hidden'>
+
+  <div id='feed-div' style='float: left; width: 220px; margin: 15px 15px 15px 15px;'>
+    <p class='title' style='height: 25px;'>Feed selection</p>
+    <p id='feeds-p'></p>
+  </div>
+
+  <div id='lactation-div' style='float: left; width: 220px; margin: 15px 15px 15px 25px;'>
+    <p class='title' style='height: 25px;'>Milk yield settings</p>
+    <p>
+      <label for="fat-spinner">Milk fat [%]</label><br>
+      <input id="fat-spinner" class='spinner' name="fat-spinner" value="4.2" title='Milk fat'>
+    </p>
+    <p>
+      <label for="protein-spinner">Milk protein [%]</label><br>
+      <input id="protein-spinner" class='spinner' name="protein-spinner" value="3.4" title='Milk protein'>
+    </p>
+    <p>
+      <label class='spin-label' for="p1-spinner">Scale factor parity 1 [%]</label><br>
+      <input id="p1-spinner" class='spinner' name="p1-spinner" value="75" title='Initial milk yield pc of cows in 1st parity compared to mature cows'>
+    </p>
+    <p>
+      <label for="lac-select">Milk yield data per level</label><br>
+      <select id="lac-select" name="lac-select">
+        <option value="0">Some real data</option>
+        <option value="6500">~ 6500 kg</option>
+        <option value="7500">~ 7500 kg</option>
+        <option value="8500">~ 8500 kg</option>
+        <option value="9500">~ 9500 kg</option>
+        <option value="10500">~ 10500 kg</option>
+        <option value="11500">~ 11500 kg</option>
+      </select>
+    </p>    
+    <p>
+      <label for="lacdata">Lactation data [week;kg]</label><br>
+      <textarea style='width: 180px; height: 240px;' id='lacdata' cols=20 rows=35 maxlength=1000 title='Paste semicolon or tab separated milk yield - not ECM - values (week of lactation;kg milk) of an average, mature cow (parity > 2) here or select a predefined set.'>
+1;17.3
+2;27.65
+3;28.14
+4;27.69
+5;30.35
+6;29
+7;28.07
+8;28.16
+9;27.2
+10;26.21
+11;26.03
+12;25.6
+13;25.49
+14;24.31
+15;24.31
+16;24.54
+17;24.29
+18;24.42
+19;24.24
+20;24.84
+21;23.43
+22;22.86
+23;22.1
+24;22.4
+25;21.49
+26;20.43
+27;19.7
+28;18.03
+29;18.49
+30;18.2
+31;15.84
+32;13.49
+33;12.67
+34;12.68
+35;13.45
+36;12.89
+37;13.4
+38;14.37
+39;13.7
+40;12.19
+41;11.13
+42;10.47
+      </textarea>
+    </p>
+  </div>
+  <div id='herd-div' style='float: left; width: 220px; margin: 15px 15px 15px 15px;'>
+    <p class='title' style='height: 25px;'>Herd settings</p>
+    <p>
+      <label for="bw-spinner">Mature body weight [kg]</label><br>
+      <input id="bw-spinner" class='spinner' name="bw-spinner" value="650" title='Body weight of mature cow'>
+    </p>
+    <p>
+      <label for="ci-spinner">Calving interval [month]</label><br>
+      <input id="ci-spinner" class='spinner' name="ci-spinner" value="13" title='Month inbetween calvings'>
+    </p>
+    <p>
+      <label for="ac-spinner">Age first calving [month]</label><br>
+      <input id="ac-spinner" class='spinner' name="ac-spinner" value="24" title='Age of first valving in month'>
+    </p>
+    <p>
+      <label for="wc-spinner">Body weight 1st calving [%]</label><br>
+      <input id="wc-spinner" class='spinner' name="wc-spinner" value="85" title='Body weight of heifer at 1st calving as % of mature body weight'>
+    </p>
+    <p>
+      <label for="fc-spinner">Female calves [%]</label><br>
+      <input id="fc-spinner" class='spinner' name="fc-spinner" value="47.0" title='Rate of female calves'>
+    </p>
+    <p>
+      <label for="sb-spinner">Still birth [%]</label><br>
+      <input id="sb-spinner" class='spinner' name="sb-spinner" value="7.0" title='Dead born calves'>
+    </p>
+    <p>
+      <label for="yc-spinner">Young stock culled [%]</label><br>
+      <input id="yc-spinner" class='spinner' name="yc-spinner" value="15.0" title='Rate of young stock that does not make it till 1st parity'>
+    </p>
+    <p>
+      <label for="rr-spinner">Annual replacement [%]</label><br>
+      <input id="rr-spinner" class='spinner' name="rr-spinner" value="30.0" title='Annual herd replacement'>
+    </p>
+    <p>
+      <label for="dp-spinner">Dry period [weeks]</label><br>
+      <input id="dp-spinner" class='spinner' name="dp-spinner" value="8" title='Length of dry period in weeks'>
+    </p>
+    <p>
+      <label for="hs-spinner">Herd size [#]</label><br>
+      <input id="hs-spinner" class='spinner' name="hs-spinner" value="50" title='Size of herd'>
+    </p>
+    <p>
+      <label for="gr-spinner">No. groups w/o dry [#]</label><br>
+      <input id="gr-spinner" class='spinner' name="gr-spinner" value="3" title='Number of groups without dry group'>
+    </p>
+    <p>
+      <input type="checkbox" id="dual-check" title='Is cow a dual-purpose breed?'><label for="gr-check">Dual-purpose breed?</label>
+    </p>
+  </div>
+
+  <div id='eval-div' style='float: left; width: 220px; margin: 15px 15px 15px 15px;'>
+    <p class='title' style='height: 25px;'>System & Ration</p>
+    <p>
+      <label for="eval-sys">Choose system</label><br>
+      <select id="eval-sys" name="eval-sys" title="Note: The diet will use the German protein system and the selected system's energy unit">
+        <option value="de">German NEL & uCP</option>
+        <option value="fi">Finnish (ME & MP)</option>
+        <option value="fr">French (UFL & PDI)</option>
+        <option value="gb">British (ME & MP)</option>
+      </select>
+    </p>
+    <p>
+      <label for="rnb-lb">RNB lower bound [nitrogen]</label><br>
+      <select id="rnb-lb" name="rnb-lb" title='Lower bound of the ruminal nitrogen balance (RNB) - part of the German protein system'>
+        <option value="-Infinity">-Infinity</option>
+        <option value="-10">-10</option>
+        <option value="0" selected>0</option>
+      </select>
+    </p>
+    <p>
+      <label for="rnb-ub">RNB upper bound [nitrogen]</label><br>
+      <select id="rnb-ub" name="rnb-ub" title='Upper bound of the ruminal nitrogen balance (RNB) - part of the German protein system'>
+        <option value="Infinity">Infinity</option>
+        <option value="50" selected>50</option>
+        <option value="0">0</option>
+      </select>
+    </p>
+    <p>
+      <label for="cc-spinner">Max. concentrate share in diet [%]</label><br>
+      <input id="cc-spinner" class='spinner' name="cc-spinner" value="40" title='Maximum concentrate share in diet in % of total dry matter intake'>
+    </p>
+  </div>
+
+  <div style='clear: both;'></div>
+</div>
+<div id='section-3' class='section'>
+  <p align="center"><span id="progress"></span><a href="#" id="download">download csv ..</a></p>
+  <div id="bxslider">
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>Wood function fitted to milk yield data vs. days post partum</p>
+      <div class='plot' id='milk-plot'></div>
+    </div>
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>cows per parity and heifers bought or sold in % of herd size</p>
+      <div class='plot' id='parity-plot'></div>
+    </div>
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>milk kg for all cows in herd vs. days post partum</p>
+      <div class='plot' id='herd-plot'></div>
+    </div>
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>milk fat % for all cows in herd vs. days post partum</p>
+      <div class='plot' id='fat-plot'></div>
+    </div>
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>milk protein % for all cows in herd vs. days post partum</p>
+      <div class='plot' id='protein-plot'></div>
+    </div>
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>intake capacity in fill units of all cows in herd vs. days post partum</p>
+      <div class='plot' id='ic-plot'></div>
+    </div>
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>kg body weight of all cows in herd vs. days post partum</p>
+      <div class='plot' id='bw-plot'></div>
+    </div>
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>kg body weight changes of all cows in herd vs. days post partum</p>
+      <div class='plot' id='bwc-plot'></div>
+    </div>
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>energy requirements of all cows in herd vs. days post partum</p>
+      <div class='plot' id='reqe-plot'></div>
+    </div>
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>protein requirements of all cows in herd vs. days post partum</p>
+      <div class='plot' id='reqp-plot'></div>
+    </div>
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>grouping criteria: protein req. / intake capacity vs. energy req. / intake capacity (normalized)</p>
+      <div class='plot' id='group-plot'></div>
+    </div>
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>group changes vs. age in days (during a lifetime of a cow)</p>
+      <div class='plot' id='gr-vs-age-plot'></div>
+    </div>
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>dry matter intake and diets for avg. cow in groups w/o dry group</p>
+      <div class='plot' id='diet-plot'></div>
+    </div>
+    <div class='plot-slide'>
+      <p align='center' class='plot-title'>requirement violation for avg. cow in group in % of total requirements</p>
+      <div class='plot' id='violation-plot'></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
