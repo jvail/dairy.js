@@ -12,6 +12,8 @@ dairy.js is a JavaScript library covering routines to simulate dairy cow herds f
   * grouping
   * herd structure
   * diet (simple LP)
+  
+Example available at http://jvail.github.io/dairy.js/.
 
 Potential use cases range from simulation, decision support, rapid model prototyping or scientific modeling in the field of agriculture.
 We tried to keep the code structure as simple as possible to make it easy to re-use, modify only parts and use them in any environment (web, web-worker, node). The naming of variables, functions and parameters sometimes seems odd: We tried to use (if possible and readable) the naming used in the original publication in order to make it as easy as possible to track errors and compare the implementation with the original math. This results unfortunately in mixing several conventions (camel case, underline, acronyms etc.).
