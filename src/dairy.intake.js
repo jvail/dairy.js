@@ -293,7 +293,7 @@ var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, parity, BWC) {
 
   while (true) {
 
-    /* staring from a diet with zero kg conc. we add one kg conc. till we reach c_mx */
+    /* staring from a diet with zero kg conc. we add conc. till we reach c_mx */
     s = GSR(c_kg, DEF(E_f, IC_f), PLPOT, parity, BWC);
     f_fv = FV_fs_diet(E_f, IC_f);
     c_fv = f_fv * s;
@@ -304,7 +304,7 @@ var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, parity, BWC) {
 
     c_fvs.push(c_fv);
 
-    /* add one kg of concentrate to the diet */
+    /* add concentrate to the diet */
     c_kg += 0.5;
     /* we assume the concentrate's UFL content is 1.05. In fact the result is not very sensitive to UFL of conc. */
     E_f = E_req - c_kg * 1.05;
