@@ -9,7 +9,8 @@
   Friggens NC, Ingvartsen KL and Emmans GC 2004. Prediction of body lipid change in pregnancy and lactation.
   Journal of Dairy Science 87, 988–1000.
 
-  Johnson IR (2005 & 2008). Biophysical modelling. IMJ Consultants, Dorrigo, NSW, Australia.
+  Johnson IR (2008). Biophysical pasture model documentation: model documentation for DairyMod, EcoMod and the SGS 
+  Pasture Model. (IMJ Consultants: Dorrigo, NSW) (http://imj.com.au/gmdocs/)
 
   Wright, Russel 1984. Estimation in vivo of the chemical composition of the bodies of mature cows.
 
@@ -79,7 +80,7 @@ var BCS = function (DIM, CI, DP, d_mx) {
 };
 
 /*
-  Johnson (2005 & 2008) eq. 7.8a
+  Johnson (2008) eq. 7.8a
 
   W       [kg]      weight of cow or young stock at day age
   age     [day]     age in days
