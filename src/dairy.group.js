@@ -266,7 +266,7 @@ var get = function (data, options) {
     , result = []
     ;
 
-  /* prepare data: add x, y property */
+  /* prepare data: add x, y property TODO: fix me! */
   for (var p = 0, ps = data.length; p < ps; p++) {
     points.x = data[xAttribute];
     points.y = data[yAttribute];
