@@ -15,7 +15,7 @@ dairy.js is a JavaScript library covering routines to simulate dairy cow herds f
   
 Examples tested with the latest (09.2014) Firefox & Chrome browser are available at http://jvail.github.io/dairy.js/.
 
-Potential use cases range from simulation, decision support, rapid model prototyping or scientific modeling in the field of agriculture. We tried to keep the code structure as simple as possible to make it easy to re-use, modify only parts and use them in any environment (web, web-worker, node). We welcome any contribution to the library (e.g. adding other ruminants like sheep and goats).
+Potential use cases range from simulation, decision support, education, rapid model prototyping or scientific modeling in the field of agriculture. We tried to keep the code structure as simple as possible to make it easy to re-use, modify only parts and use them in any environment (web, web-worker, node). We welcome any contribution to the library (e.g. adding other ruminants like sheep and goats).
 
 ###REFERENCES
 
