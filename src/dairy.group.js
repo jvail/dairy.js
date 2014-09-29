@@ -266,11 +266,14 @@ var get = function (data, options) {
     , result = []
     ;
 
-  /* prepare data: add x, y property TODO: fix me! */
-  for (var p = 0, ps = data.length; p < ps; p++) {
-    points.x = data[xAttribute];
-    points.y = data[yAttribute];
-  }  
+  if (typeof xAttribute === 'string' && xAttribute.length > 0
+    && typeof yAttribute === 'string' && yAttribute.length > 0) {
+    /* prepare data: add x, y property */
+    for (var p = 0, ps = data.length; p < ps; p++) {
+      points[p].x = data[xAttribute];
+      points[p].y = data[yAttribute];
+    }  
+  }
 
   if (normalize)
     doNormalize(points);
