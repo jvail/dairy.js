@@ -12,6 +12,9 @@
 <script src='3rdparty/jquery.flot/jquery.flot.categories.min.js'></script>
 <script src='3rdparty/jquery.flot/jquery.flot.stack.min.js'></script>
 <script src='3rdparty/jquery.bxslider/jquery.bxslider.js'></script>
+<script src="http://zizhujy.com/Scripts/base64.js"></script>
+<script src="http://zizhujy.com/Scripts/drawing/canvas2image.js"></script>
+<script src="http://zizhujy.com/Scripts/flot/jquery.flot.saveAsImage.js"></script>
 <script src='3rdparty/spin.js'></script>
 <script src='3rdparty/simple_statistics.js'></script>
 <script src='index.ui.js'></script>
@@ -58,7 +61,7 @@ body {
 .title, .plot-title {
   font-family: Georgia, serif  !important;
   font-size: 150%;
-  color: DarkSlateGray ;
+  color: #303030 ;
   text-decoration: none;
   font-style: italic;  
 }
@@ -75,7 +78,7 @@ body {
 #download {
   font-family: Georgia  !important;
   font-size: 110%;
-  color: DarkSlateGray;
+  color: #303030;
   font-style: normal;
   padding: 10px;
   margin-top: 15px;
@@ -85,7 +88,7 @@ body {
 #progress {
   font-family: Georgia  !important;
   font-size: 110%;
-  color: DarkSlateGray;
+  color: #303030;
   font-style: normal;
   padding: 10px;
   margin-top: 15px;
@@ -95,7 +98,7 @@ body {
 label {
   font-family: Georgia, serif  !important;
   font-size: 100%;
-  color: DarkSlateGray;
+  color: #303030;
   text-decoration: none;
   font-style: italic; 
   white-space:nowrap;
@@ -126,6 +129,12 @@ label {
 
 #section-1 > p {
   font-size: 110%;
+  color: #303030;
+  line-height: 130%;
+}
+
+a {
+  color: #336699;
 }
 
 .link {
@@ -181,12 +190,12 @@ select {
   <a href="#section-3" class="section-link active">Results</a>
 </div>
 <div id='section-1' class='section hidden' style='width:800px;'>
-  <p>This is only an brief illustration of the library's functionality: feed evaluation, herd structure, milk yield, requirements, intake, grouping & diet optimization. Tested only with the latest (09.2014) Firefox & Chrome browser. Additinal output (lmfit&GLPK) is visible in the browser's console (CTRL+SHIFT+J).
   <p class="title">Usage</p>
   <p>Choose your settings and click "Results". This will trigger the follwing calculations. Details of the implementation and references to the original publications can be found in the source code available from <a href="https://github.com/jvail/dairy.js/tree/master/src">https://github.com/jvail/dairy.js/tree/master/src</a>.</p>
+  <p>This is only an brief illustration of the library's functionality: feed evaluation, herd structure, milk yield, requirements, intake, grouping & diet optimization. Tested only with the latest (09.2014) Firefox & Chrome browser. Additinal output (lmfit&GLPK) is visible in the browser's console (CTRL+SHIFT+J).</p>
   <p class="title">Curve fitting</p>
   <p>The Wood lactation curve is fitted to the provided lactation data to obtain the three parameters of the Wood curve. A best fit is achived
-    with a Levenberg-Marquardt least-squares minimization implemented in <a href="https://github.com/jvail/lmfit.js">lmfit</a>.</p>
+    with a Levenberg-Marquardt least-squares minimization implemented in <a href="https://github.com/jvail/lmfit.js">lmfit.js</a>.</p>
   <p class="title">Herd structure</p>
   <p>The structure of the herd (demographics) is calculated to estimate the percentage of cows of parities 1 to 3 (>2). 
     The simulation adjusts heifer availability (either "sell or buy") if there are too many or not enough heifers available to achiev the target herd size. 
@@ -195,13 +204,13 @@ select {
   <p>The obtained Wood parameters are used to calculate milk yield and solids. Both are adjusted for parity. An adjustment parameter for milk yield of parity 1
     is available in "Settings". This adjusts the inital milk yield level for parity 1 relative to the inital milk yield of a mature cow.</p>
   <p class="title">Requirements & intake</p>
-  <p>Both energy and protein requirements for each cow are calculated using the chosen system (DE, FI, FR, GB). The intake capacity is calculated with a fill value based system from INRA. Therefore the units of intake capacity are fill values (LFU).<p>
+  <p>Both energy and protein requirements for each cow are calculated using the chosen system (DE, FI, FR, GB). The intake capacity is calculated with a fill value based system from <a href="http://www6.inra.fr/productions-animales_eng/2007-Volume-20/Issue-2-2007/The-feed-intake-in-dairy-cows-and-its-prediction-during-lactation">INRA</a>. Therefore the units of intake capacity are fill values (LFU).<p>
   <p class="title">Grouping</p>
   <p>The cows are grouped as such that the variance of requirement devided by intake capacity is minimized within groups: Cows within groups require a "similar" 
-    energy and protein density in their diet. This is achived by applying the k-means algorithm. Since the result of k-means depends on the initially chosen
+    energy and protein density and energy:protein ratio in their diet. This is achived by applying the <a href="http://en.wikipedia.org/wiki/K-means_clustering">k-means</a> algorithm. Since the result of k-means depends on the initially chosen
     points the results of two runs with equal settings might slightly vary. To prevent this k-means runs several times and the best solution is returned.</p>
   <p class="title">Diet</p>
-  <p>The diets are calculated with a linear program using <a href="https://github.com/jvail/glpk.js">GLPK</a> for an average cow within each group. Diets are optimized as such that the total sum of relative (to the cow's requirements) violations (nutrients in diet / nutrients required) is minimized (Nutrients are energy and protein) subject to the following constraints: feed intake equals intake capacity, the RNB of the diet is within the upper and lower bound of the Ruminal Nitrogen Balance and concentrate dy matter in diet is below the maximum (see settings). The violations of energy requirments are weighted by the factor 10 compared to protein. Although the system specific protein requirements are calculate and presented the diet always uses only the German protein system (uCP, RNB). Energy is always expressed in the chosen system's unit. This is due to requirements and limitations in the original project (<a href="http://www.solidairy.eu/">SOLID</a>) this library was developed for. Also this is the reason for not having a constraint for the diet's fibre content. In low-input dairying feeds with very low fibre content wont be abundantly available. If necessary, adding such a constaint to the LP wont be difficult.</p>
+  <p>The diets are calculated with a linear program using <a href="https://github.com/jvail/glpk.js">glpk.js</a> for an average cow within each group. Diets are optimized as such that the total sum of relative (to the cow's requirements) violations (nutrients in diet / nutrients required) is minimized (Nutrients are energy and protein) subject to the following constraints: feed intake equals intake capacity, the Ruminal Nitrogen Balance (RNB) of the diet is within or equals the upper and lower bound of the RNB and concentrate dy matter in diet is below or equals the maximum (see settings). The violations of energy requirments are weighted by the factor 10 compared to protein. Although the system specific protein requirements are calculate and presented the diet always uses only the German protein system (uCP, RNB). Energy is always expressed in the chosen system's unit. This is due to requirements and limitations in the original project (<a href="http://www.solidairy.eu/">SOLID</a>) this library was developed for. Also this is the reason for not having a constraint for the diet's fibre content. In low-input dairying feeds with very low fibre content wont be abundantly available. If necessary, adding such a constaint to the LP wont be difficult.</p>
 </div>
 <div id='section-2' class='section hidden'>
 
