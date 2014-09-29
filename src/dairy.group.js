@@ -270,8 +270,8 @@ var get = function (data, options) {
     && typeof yAttribute === 'string' && yAttribute.length > 0) {
     /* prepare data: add x, y property */
     for (var p = 0, ps = data.length; p < ps; p++) {
-      points[p].x = data[xAttribute];
-      points[p].y = data[yAttribute];
+      points[p].x = data[p][xAttribute];
+      points[p].y = data[p][yAttribute];
     }  
   }
 
