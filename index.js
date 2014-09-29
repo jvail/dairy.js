@@ -344,11 +344,8 @@ function feedEvaluation() {
         var nonDryCows = [];
         for (var c = 0, cs = herd.cows.length; c < cs; c++) {
           var cow = herd.cows[c];
-          cow.x = cow.req[settings.evalSys].total.E / cow.IC;  
-          cow.y = cow.req.de.total.P / cow.IC;
-          /* store ratio here as well because grouping will normalize x/y i.e. alter the value */
-          cow.x_noNorm = cow.x;
-          cow.y_noNorm = cow.y;
+          cow.E_density = cow.req[settings.evalSys].total.E / cow.IC;  
+          cow.P_density = cow.req.de.total.P / cow.IC;
           if (!cow.isDry)
             nonDryCows.push(cow);
         }
@@ -357,6 +354,8 @@ function feedEvaluation() {
             k: settings.noGroups
           , runs: 15
           , normalize: true
+          , xAttribute: 'E_density'
+          , yAttribute: 'P_density'
         };
 
         var sum = dairy.group.get(nonDryCows, groupOptions);
