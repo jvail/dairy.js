@@ -413,7 +413,8 @@ return {
   Friggens NC, Ingvartsen KL and Emmans GC 2004. Prediction of body lipid change in pregnancy and lactation.
   Journal of Dairy Science 87, 988–1000.
 
-  Johnson IR (2005 & 2008). Biophysical modelling. IMJ Consultants, Dorrigo, NSW, Australia.
+  Johnson IR (2008). Biophysical pasture model documentation: model documentation for DairyMod, EcoMod and the SGS 
+  Pasture Model. (IMJ Consultants: Dorrigo, NSW) (http://imj.com.au/gmdocs/)
 
   Wright, Russel 1984. Estimation in vivo of the chemical composition of the bodies of mature cows.
 
@@ -483,7 +484,7 @@ var BCS = function (DIM, CI, DP, d_mx) {
 };
 
 /*
-  Johnson (2005 & 2008) eq. 7.8a
+  Johnson (2008) eq. 7.8a
 
   W       [kg]      weight of cow or young stock at day age
   age     [day]     age in days
@@ -1011,7 +1012,7 @@ var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, parity, BWC) {
 
   while (true) {
 
-    /* staring from a diet with zero kg conc. we add one kg conc. till we reach c_mx */
+    /* staring from a diet with zero kg conc. we add conc. till we reach c_mx */
     s = GSR(c_kg, DEF(E_f, IC_f), PLPOT, parity, BWC);
     f_fv = FV_fs_diet(E_f, IC_f);
     c_fv = f_fv * s;
@@ -1022,7 +1023,7 @@ var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, parity, BWC) {
 
     c_fvs.push(c_fv);
 
-    /* add one kg of concentrate to the diet */
+    /* add concentrate to the diet */
     c_kg += 0.5;
     /* we assume the concentrate's UFL content is 1.05. In fact the result is not very sensitive to UFL of conc. */
     E_f = E_req - c_kg * 1.05;
@@ -2738,11 +2739,14 @@ var get = function (data, options) {
     , result = []
     ;
 
-  /* prepare data: add x, y property */
-  for (var p = 0, ps = data.length; p < ps; p++) {
-    points.x = data[xAttribute];
-    points.y = data[yAttribute];
-  }  
+  if (typeof xAttribute === 'string' && xAttribute.length > 0
+    && typeof yAttribute === 'string' && yAttribute.length > 0) {
+    /* prepare data: add x, y property */
+    for (var p = 0, ps = data.length; p < ps; p++) {
+      points[p].x = data[p][xAttribute];
+      points[p].y = data[p][yAttribute];
+    }  
+  }
 
   if (normalize)
     doNormalize(points);
