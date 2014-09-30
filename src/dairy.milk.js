@@ -138,9 +138,6 @@ var milk = function (a, b, c, n, p, BW, MBW) {
 
   var milk = 0;
 
-  // if (is_null_or_undefined(scale))
-  //   scale = 0.75;
-
   if (p === 1)
     milk = BW / MBW * a * pow(n, b - 0.0374) * exp((c + 0.0092) * n);
   else if (p === 2)
