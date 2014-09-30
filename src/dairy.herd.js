@@ -18,6 +18,7 @@
   TODO
   
     - add calving pattern option (seasonal)
+    - add parity 4 (>3) to output
 */
 
 var dairy = dairy || {};
