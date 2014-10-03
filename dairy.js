@@ -305,15 +305,16 @@ var d_mx = function (b, c, p) {
   b         [-]       Shape constant
   c         [-]       Shape constant
   p         [#]       Parity, defaults to parity > 2
-  scale     [kg kg-1] Scale initial milk yield of heifers as pc of cows of parity > 2 (default 0.75)
+  BW_c      [kg]      Actual body weight at calving
+  MBW       [kg]      Mature body weight
 */
 
-var milk_305 = function (a, b, c, p, scale) {
+var milk_305 = function (a, b, c, p, BW_c, MBW) {
 
   var milk_305 = 0;
 
   for (var day = 1; day < 306; day++)
-    milk_305 += milk(a, b, c, day / 7, p, scale);
+    milk_305 += milk(a, b, c, day / 7, p, BW_c, MBW);
 
   return milk_305;
 
