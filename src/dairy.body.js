@@ -295,16 +295,36 @@ var BW = function (DPP, d_mx, age, CI, W_m, age_c1, W_b, W_c1, type) {
 
 };
 
+/*  
+  Body weight at calving
+
+  BW_c    [kg]      body weight at calving
+  DPP     [day]     days post partum 
+  age     [day]     cow's age in days
+  W_m     [kg]      mature body weight
+  age_c1  [month]   age first calving
+  W_b     [kg]      weight of calf at birth 
+  W_c1    [kg kg-1] fraction (recommended) of mature body weight at first calving
+*/
+
+var BW_c = function (DPP, age, W_m, age_c1, W_b, W_c1) {
+
+  return W(age - DPP, age_c1, W_b, W_c1, W_m);
+
+};
+
 return {
 
     BWC: BWC
   , weightChange: BWC
   , BW: BW  
   , weight: BW
+  , BW_c: BW_c  
+  , weightAtCalving: BW_c
   , BCS: BCS
   , conditionScore: BCS
   , W: W
-  , potentialWeight: W
+  , weightPotential: W
   , WB: W_b
   , weightAtBirth: W_b
 

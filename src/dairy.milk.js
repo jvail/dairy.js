@@ -122,7 +122,7 @@ var data = {
 
   Prediction of milk yield adjusted for parity. Parameter adjustment (b & c) from p.137, table 4.
 
-  Milk production potential (a parameter per parity) is scaled proportionally subject to the cow's size (BW / MBW).
+  Milk production potential (a parameter per parity) is scaled proportionally subject to the cow's size at calving (BW_c / MBW).
 
   milk  [kg]      Milk yield in week n
   a     [-]       Scale factor 
@@ -130,18 +130,18 @@ var data = {
   c     [-]       Shape constant
   n     [week]    Week of lactation
   p     [#]       Parity, defaults to parity > 2
-  BW    [kg]      Actual body weight
+  BW_c  [kg]      Actual body weight at calving
   MBW   [kg]      Mature body weight
 */
 
-var milk = function (a, b, c, n, p, BW, MBW) {
+var milk = function (a, b, c, n, p, BW_c, MBW) {
 
   var milk = 0;
 
   if (p === 1)
-    milk = BW / MBW * a * pow(n, b - 0.0374) * exp((c + 0.0092) * n);
+    milk = BW_c / MBW * a * pow(n, b - 0.0374) * exp((c + 0.0092) * n);
   else if (p === 2)
-    milk = BW / MBW * a * pow(n, b - 0.0253) * exp((c + 0.0000) * n);
+    milk = BW_c / MBW * a * pow(n, b - 0.0253) * exp((c + 0.0000) * n);
   else /* defaults to parity > 2 */
     milk = a * pow(n, b + 0.0460) * exp((c - 0.0052) * n);
 
