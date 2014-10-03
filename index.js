@@ -109,7 +109,6 @@ $(function () {
       , RR: ui.rr.spinner('value') / 100 /* to fraction */
       , DP: ui.dp.spinner('value') / (DAYS_IN_MONTH / 7) /* to month */
       , HS: ui.hs.spinner('value')
-      , P1: ui.p1.spinner('value') / 100 /* to fraction */
       , WC: ui.wc.spinner('value') / 100 /* to fraction */
       , CC: ui.cc.spinner('value') / 100 /* to fraction */
       , noGroups: ui.noGroups.spinner('value')
@@ -185,7 +184,6 @@ function feedEvaluation() {
     var MBW = settings.BW
       , CI = settings.CI
       , DP = settings.DP
-      , P1 = settings.P1
       , fat = settings.fat
       , protein = settings.protein
       , evalSys = settings.evalSys
@@ -209,25 +207,26 @@ function feedEvaluation() {
         , fr: {}
       };
 
-      /* independ of eval. system */
-      cow.PLPOT = dairy.milk.milk(woodParams[0], woodParams[1], woodParams[2], cow.DPP / 7, cow.P, P1);
-      cow.milk = cow.isDry ? 0 : cow.PLPOT;
       cow.d_mx = dairy.milk.d_mx(woodParams[1], woodParams[2], cow.P);
+      cow.BW = dairy.body.BW(cow.DPP, cow.d_mx, cow.AGE_days, CI, MBW, AC, WB, WC, type);
+      cow.BWC = dairy.body.BWC(cow.DPP, cow.d_mx, cow.AGE_days, CI, MBW, AC, WB, WC, type);
+      cow.BCS = dairy.body.BCS(cow.DPP, CI, DP * 7, cow.P, cow.d_mx);
+      cow.BW_c = dairy.body.BW_c(cow.DPP, cow.AGE_days, MBW, AC, WB, WC);
+
+      /* independ of eval. system */
+      cow.PLPOT = dairy.milk.milk(woodParams[0], woodParams[1], woodParams[2], cow.DPP / 7, cow.P, cow.BW_c, MBW);
+      cow.milk = cow.isDry ? 0 : cow.PLPOT;
       var fat_a = dairy.milk.fat_a(fat, cow.P, cow.d_mx / 7);     
       var protein_a = dairy.milk.protein_a(protein, cow.P, cow.d_mx / 7);      
       cow.fat = cow.isDry ? 0 : dairy.milk.fat(fat_a, cow.DIM / 7, cow.P, cow.d_mx / 7); 
       cow.protein = cow.isDry ? 0 : dairy.milk.protein(protein_a, cow.DIM / 7, cow.P, cow.d_mx / 7);
-      cow.milk305 = dairy.milk.milk_305(woodParams[0], woodParams[1], woodParams[2], cow.P, P1); 
+      cow.milk305 = dairy.milk.milk_305(woodParams[0], woodParams[1], woodParams[2], cow.P, cow.BW_c, MBW); 
 
       // console.log('wrong_fat: ' + fat + '; avg: ' + dairy.milk.fat_avg_305(fat, cow.P, cow.d_mx / 7));
       // console.log('new_fat: ' + fat + '; avg: ' + dairy.milk.fat_avg_305(fat_a, cow.P, cow.d_mx / 7));
       // console.log('fat_a: ' + fat_a);
       // console.log('protein: ' + protein + '; avg: ' + dairy.milk.protein_avg_305(protein_a, cow.P, cow.d_mx / 7));    
 
-
-      cow.BW = dairy.body.BW(cow.DPP, cow.d_mx, cow.AGE_days, CI, MBW, AC, WB, WC, type);
-      cow.BWC = dairy.body.BWC(cow.DPP, cow.d_mx, cow.AGE_days, CI, MBW, AC, WB, WC, type);
-      cow.BCS = dairy.body.BCS(cow.DPP, CI, DP * 7, cow.P, cow.d_mx);
       cow.IC = dairy.intake.IC(cow.BW, cow.milk, cow.BCS, cow.DIM / 7, cow.DG / 7, cow.AGE_days / DAYS_IN_MONTH, cow.P);
 
       cow.req.fi = {

@@ -122,26 +122,26 @@ var data = {
 
   Prediction of milk yield adjusted for parity. Parameter adjustment (b & c) from p.137, table 4.
 
+  Milk production potential (a parameter per parity) is scaled proportionally subject to the cow's size at calving (BW_c / MBW).
+
   milk  [kg]      Milk yield in week n
   a     [-]       Scale factor 
   b     [-]       Shape constant
   c     [-]       Shape constant
   n     [week]    Week of lactation
   p     [#]       Parity, defaults to parity > 2
-  scale [kg kg-1] Scale initial milk yield of heifers as pc of cows of parity > 2 (default 0.75)
+  BW_c  [kg]      Actual body weight at calving
+  MBW   [kg]      Mature body weight
 */
 
-var milk = function (a, b, c, n, p, scale) {
+var milk = function (a, b, c, n, p, BW_c, MBW) {
 
   var milk = 0;
 
-  if (is_null_or_undefined(scale))
-    scale = 0.75;
-
   if (p === 1)
-    milk = scale * a * pow(n, b - 0.0374) * exp((c + 0.0092) * n);
+    milk = BW_c / MBW * a * pow(n, b - 0.0374) * exp((c + 0.0092) * n);
   else if (p === 2)
-    milk = a * pow(n, b - 0.0253) * exp((c + 0.0000) * n);
+    milk = BW_c / MBW * a * pow(n, b - 0.0253) * exp((c + 0.0000) * n);
   else /* defaults to parity > 2 */
     milk = a * pow(n, b + 0.0460) * exp((c - 0.0052) * n);
 
@@ -305,15 +305,16 @@ var d_mx = function (b, c, p) {
   b         [-]       Shape constant
   c         [-]       Shape constant
   p         [#]       Parity, defaults to parity > 2
-  scale     [kg kg-1] Scale initial milk yield of heifers as pc of cows of parity > 2 (default 0.75)
+  BW_c      [kg]      Actual body weight at calving
+  MBW       [kg]      Mature body weight
 */
 
-var milk_305 = function (a, b, c, p, scale) {
+var milk_305 = function (a, b, c, p, BW_c, MBW) {
 
   var milk_305 = 0;
 
   for (var day = 1; day < 306; day++)
-    milk_305 += milk(a, b, c, day / 7, p, scale);
+    milk_305 += milk(a, b, c, day / 7, p, BW_c, MBW);
 
   return milk_305;
 
@@ -699,16 +700,36 @@ var BW = function (DPP, d_mx, age, CI, W_m, age_c1, W_b, W_c1, type) {
 
 };
 
+/*  
+  Body weight at calving
+
+  BW_c    [kg]      body weight at calving
+  DPP     [day]     days post partum 
+  age     [day]     cow's age in days
+  W_m     [kg]      mature body weight
+  age_c1  [month]   age first calving
+  W_b     [kg]      weight of calf at birth 
+  W_c1    [kg kg-1] fraction (recommended) of mature body weight at first calving
+*/
+
+var BW_c = function (DPP, age, W_m, age_c1, W_b, W_c1) {
+
+  return W(age - DPP, age_c1, W_b, W_c1, W_m);
+
+};
+
 return {
 
     BWC: BWC
   , weightChange: BWC
   , BW: BW  
   , weight: BW
+  , BW_c: BW_c  
+  , weightAtCalving: BW_c
   , BCS: BCS
   , conditionScore: BCS
   , W: W
-  , potentialWeight: W
+  , weightPotential: W
   , WB: W_b
   , weightAtBirth: W_b
 
@@ -2154,6 +2175,7 @@ return {
   TODO
   
     - add calving pattern option (seasonal)
+    - add parity 4 (>3) to output
 */
 
 var dairy = dairy || {};

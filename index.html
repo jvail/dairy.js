@@ -201,8 +201,8 @@ select {
     The simulation adjusts heifer availability (either "sell or buy") if there are too many or not enough heifers available to achiev the target herd size. 
     Currently there is not adjustment for a seasonal distribution of calvings. The cows are then evently distrituted throughout calving interval (days post partum).</p>
   <p class="title">Milk & milk solids</p>
-  <p>The obtained Wood parameters are used to calculate milk yield and solids. Both are adjusted for parity. An adjustment parameter for milk yield of parity 1
-    is available in "Settings". This adjusts the inital milk yield level for parity 1 relative to the inital milk yield of a mature cow.</p>
+  <p>The obtained Wood parameters are used to calculate milk yield and solids. Both are adjusted for parity. Initial milk yield of parity 1 & 2
+    is scaled subject to the weight at calving compared to mature body weight.</p>
   <p class="title">Requirements & intake</p>
   <p>Both energy and protein requirements for each cow are calculated using the chosen system (DE, FI, FR, GB). The intake capacity is calculated with a fill value based system from <a href="http://www6.inra.fr/productions-animales_eng/2007-Volume-20/Issue-2-2007/The-feed-intake-in-dairy-cows-and-its-prediction-during-lactation">INRA</a>. Therefore the units of intake capacity are fill values (LFU).<p>
   <p class="title">Grouping</p>
@@ -228,10 +228,6 @@ select {
     <p>
       <label for="protein-spinner">Milk protein [%]</label><br>
       <input id="protein-spinner" class='spinner' name="protein-spinner" value="3.4" title='Milk protein'>
-    </p>
-    <p>
-      <label class='spin-label' for="p1-spinner">Scale factor parity 1 [%]</label><br>
-      <input id="p1-spinner" class='spinner' name="p1-spinner" value="75" title='Initial milk yield pc of cows in 1st parity compared to mature cows'>
     </p>
     <p>
       <label for="lac-select">Milk yield data per level</label><br>

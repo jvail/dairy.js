@@ -96,13 +96,6 @@
           start: 5,
           numberFormat: 'n'
         })
-      , p1: $('#p1-spinner').spinner({
-          min: 75,
-          max: 90,
-          step: 5,
-          start: 75,
-          numberFormat: 'n'
-        })
       , wc: $('#wc-spinner').spinner({
           min: 75,
           max: 90,
