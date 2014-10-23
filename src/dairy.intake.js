@@ -372,7 +372,7 @@ var GSR = function (QI_c, DEF, PLPOT, parity, BWC) {
 
   GSR_zero = d * pow(PLPOT, -0.62) * exp(1.32 * DEF);
 
-  if (BWC < 0) /* cow is mobilizing */
+  if (BWC < 0) /* energy balance of the cow is negative, irrespective of the reason */
     GSR = -0.43 + 1.82 * GSR_zero + 0.035 * QI_c - 0.00053 * PLPOT * QI_c;
   else
     GSR = GSR_zero;
