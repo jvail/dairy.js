@@ -50,6 +50,7 @@ var pow = Math.pow
   Metzner et. al. (1993)
 
   We assume BCS of BCS_max during dry period and a minimum BCS at day d_mx + 55.
+  BCS is everywhere expressed on a six point scale.
 
   BCS     [-]     body condition score
   DIM     [day]   days in milk
