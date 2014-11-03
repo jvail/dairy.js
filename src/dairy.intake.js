@@ -23,13 +23,6 @@
 
   Because GrazeIn in based on the INRA fill value system, in some cases equations from Agabriel (2010) are used.
 
-  The general functional principal of the INRA fill value system is as follows: The sum of all fill values of the feeds
-  equals the intake capacity of the cow. While the intake capacity of the cow is almost exclusively based on animal-
-  related parameters, the fill values of the feeds are almost exclusively based on feed-related parameters. Exceptions
-  are the appearance of "potential milk production modified by protein intake" in the calculation of the intake
-  capacity, and the appearance of milk yield and energy requirements in the calculation of the fill values of
-  concentrates.
-
   Fill values (FV) for cows are expressed in the unit LFU, lactating fill unit (UEL, unite encombrement lait) and in UEB 
   (unite encombrement bovin) for young stock.
 
