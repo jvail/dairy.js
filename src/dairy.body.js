@@ -121,8 +121,9 @@ var W = function (age, age_c1, W_b, W_c1, W_m) {
 
 var W_b = function (W_m) {
 
-  /* parameters for cattle, table 7.3 */
-  var c_b = -2
+  var W_b = 0
+      /* parameters for cattle, table 7.3 */
+    , c_b = -2
     , m_b = 0.066
     ;
 
