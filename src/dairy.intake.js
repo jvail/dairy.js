@@ -1,5 +1,15 @@
 /*
-  The prediction of feed intake uses a simplified GrazeIn algorithm.
+  Feed intake of cows and young stock is predicted according to the French fill value system described in Agabriel (2010).
+
+  The general functional principal of the INRA fill value system is as follows: The sum of all fill values of the feeds
+  equals the intake capacity of the animal. While the intake capacity of the animals is based on animal-related
+  parameters, the fill values of the feeds are based on feed-related parameters.
+
+  Although not mentioned in Delagarde et al. (2011), we assume that the feed intake restrictions that apply for
+  grazing dairy cows also apply for grazing heifers, because they are based on non-nutritional factors linked to sward
+  availability and grazing management, not on nutritional factors linked to animal characteristics.
+
+  The prediction of feed intake at grazing uses a simplified GrazeIn algorithm.
 
   GrazeMore, "Improving sustainability of milk production systems in the European Union through increasing reliance on
   grazed pasture" was an EU research project that ran from 2000-2004. It involved the development of a grazing decision
@@ -20,6 +30,9 @@
   capacity, and the appearance of milk yield and energy requirements in the calculation of the fill values of
   concentrates.
 
+  Fill values (FV) for cows are expressed in the unit LFU, lactating fill unit (UEL, unite encombrement lait) and in UEB 
+  (unite encombrement bovin) for young stock.
+
   REFERENCES
 
   Faverdin, P., Baratte, C., Delagarde, R. & Peyraud, J. L. (2011).
@@ -34,8 +47,6 @@
 
   Agabriel, J. (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs
   des aliments. Tables INRA 2010. Editions Quae, France.
-
-  Fill values (FV) are expressed in the unit LFU, lactating fill unit (UEL, unite encombrement lait)
 
   LICENSE
 
@@ -103,7 +114,7 @@ var DMI = function (Fs, FVs_f, Cs, FVs_c, FV_h, HI_r, HI_g) {
 };
 
 /*
-  Agabriel (2010), eq. 2.3
+  Agabriel (2010), eqs. 2.3 & 4.5
 
   Equation to calculate the intake capacity.
   
@@ -117,24 +128,34 @@ var DMI = function (Fs, FVs_f, Cs, FVs_c, FV_h, HI_r, HI_g) {
   represent average milk yields instead of actual ones, so they can be interpreted as a potential under the given
   circumstances.
 
-  TODO
-    - is PLPOT in ECM?
-
-  IC    [LFU]       intake capacity ~ DMI @ FV = 1
-  BW    [kg]        body weight
-  PLPOT [kg day-1]  milk yield, potential
-  BCS   [-]         body condition score (1-5)
-  WL    [week]      week of lactation
-  WG    [week]      week of gestation (0-40)
-  AGE   [month]     age in month
-  p     [#]         parity
+  IC    [LFU or UEB]  intake capacity ~ DMI @ FV = 1
+  BW    [kg]          body weight
+  PLPOT [kg day-1]    milk yield, potential
+  BCS   [-]           body condition score (1-5)
+  WL    [week]        week of lactation
+  WG    [week]        week of gestation (0-40)
+  AGE   [month]       age in month
+  p     [#]           parity
 */
 
 var IC = function (BW, PLPOT, BCS, WL, WG, AGE, p) {
 
   var IC = 0;
 
-  IC = (13.9 + (BW - 600) * 0.015 + PLPOT * 0.15 + (3 - BCS) * 1.5) * IL(p, WL) * IG(WG) * IM(AGE);
+  if (p > 0) { /* cows */
+
+    IC = (13.9 + (BW - 600) * 0.015 + PLPOT * 0.15 + (3 - BCS) * 1.5) * IL(p, WL) * IG(WG) * IM(AGE);
+  
+  } else if (p === 0) { /* young stock */
+
+    if (BW <= 150)
+      IC = 0.039 * pow(BW, 0.9) + 0.2;
+    else if (150 < BW <= 290)
+      IC = 0.039 * pow(BW, 0.9) + 0.1;
+    else
+      IC = 0.039 * pow(BW, 0.9);
+
+  }
 
   return IC;
 
@@ -199,15 +220,19 @@ var IM = function (AGE) {
 
   The general equation for calculating forage fill values.
 
-  The QIL-values are calculated in feed.evaluation, details see there.
+  The QIL and QIB values are calculated in feed.evaluation, details see there.
   
-  FV_f  [LFU kg-1 (DM)] forage fill value (unite encombrement lait)
-  QIL   [g kg-1]        ingestibility in g per kg metabolic live weight                
+  FV_f  [LFU or UEB kg-1 (DM)] forage fill value (is LFU for cows and UEB for young stock)
+  QIX   [g kg-1]               ingestibility in g per kg metabolic live weight (is QIL for cows and QIB for young stock)               
+  p     [#]                    parity
 */
 
-var FV_f = function (QIL) {
+var FV_f = function (QIX, p) {
 
-  return 140 / QIL;
+  if (p > 0) /* cows */
+    return 140 / QIX;
+  else       /* young stock */
+    return 95 / QIX
 
 };
 
@@ -220,9 +245,9 @@ var FV_f = function (QIL) {
   Because the total diet is unknown prior to the allocation of feeds, the weighted mean of the FV of all available
   forages for the group of cows and the time period in question is used for FV_fr.
 
-  FV_c  [LFU kg-1 (DM)] concentrate fill value (lactating fill unit, unite encombrement lait)
-  FV_fs [LFU]           weighted FV of forages in ration
-  GSR   [-]             global substitution rate (0-1)
+  FV_c  [LFU or UEB kg-1 (DM)] concentrate fill value (lactating fill unit, unite encombrement lait)
+  FV_fs [LFU]                  weighted FV of forages in ration
+  GSR   [-]                    global substitution rate (0-1)
 */
 
 var FV_c = function (FV_fs, GSR) {
@@ -236,17 +261,22 @@ var FV_c = function (FV_fs, GSR) {
 
   Equation to estimate the fill value of forages in a diet from the cow's requirements prior to ration optimization.
   This is based on the fact that on average a feed's fill value will descrease with increasing energy content. The 
-  estimated FV_fs is used to calculate a concentrate fill value (see FV_cs). We need it if we what to keep the diet LP linear.
-  The regression was calculated from all forages available in Agabriel 2010 (r^2 = 0.564, n = 643).
+  estimated FV_fs is used to calculate a concentrate fill value (see FV_cs). We need it if we what to keep the diet LP 
+  linear.
+  The regression was calculated from all forages available in Agabriel 2010. Details and R script in ../doc/FV_f.
 
-  FV_fs_diet  [LFU kg-1 (DM)] Estimated fill value of forages in diet
+  FV_fs_diet  [LFU or UEB kg-1 (DM)] Estimated fill value of forages in diet
   E_fs        [UFL]           Total energy content of forages in diet
   FV_fs       [LFU]           Total fill values of forages in diet
+  p           [#]             parity
 */
 
-var FV_fs_diet = function (E_fs, FV_fs) {
+var FV_fs_diet = function (E_fs, FV_fs, p) {
 
-  return - 0.489 * E_fs / FV_fs + 1.433;
+  if (p > 0)
+    return -0.489 * E_fs / FV_fs + 1.433;
+  else
+    return -0.783 * E_fs / FV_fs + 1.688;
 
 };
 
@@ -266,11 +296,11 @@ var FV_fs_diet = function (E_fs, FV_fs) {
   c_mx        [kg kg-1]       Maximum fraction (DM) of concentrates in diet (optional, defaults to 0.5 which is the 
                               range the INRA system is applicable)
   PLPOT       [kg day-1]      milk yield, potential
-  parity      [#]             parity
+  p           [#]             parity
   BWC         [kg]            body weight change       
 */
 
-var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, parity, BWC) {
+var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, p, BWC) {
 
   var FV_cs_diet = 0;
 
@@ -294,8 +324,8 @@ var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, parity, BWC) {
   while (true) {
 
     /* staring from a diet with zero kg conc. we add conc. till we reach c_mx */
-    s = GSR(c_kg, DEF(E_f, IC_f), PLPOT, parity, BWC);
-    f_fv = FV_fs_diet(E_f, IC_f);
+    f_fv = FV_fs_diet(E_f, IC_f, p);
+    s = GSR(c_kg, DEF(E_f, IC_f), PLPOT, p, BWC, f_fv);
     c_fv = f_fv * s;
     c = c_kg / (IC_f / f_fv + c_kg);
 
@@ -325,19 +355,19 @@ var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, parity, BWC) {
   DEF is the average energy density of the forages in the diet, which is calculated as the weighted mean of all
   available forages for the group of cows and the time period in question.
 
-  DEF       [UFL LFU-1]      average energy density of the forages in the diet (can be slightly higher than 1)
-  UFL_fs    [UFL kg-1 (DM)]  sum of the energy contents of all available forages
-  LFU_fs    [LFU kg-1 (DM)]  sum of the fill values of all available forages
+  DEF     [UFL LFU-1]             average energy density of the forages in the diet (can be slightly higher than 1)
+  UFL_fs  [UFL kg-1 (DM)]         sum of the energy contents of all available forages
+  FV_fs   [LFU or UEB kg-1 (DM)]  sum of the fill values of all available forages
 */
 
-var DEF = function (UFL_fs, LFU_fs) {
+var DEF = function (UFL_fs, FV_fs) {
 
-  return UFL_fs / LFU_fs;
+  return UFL_fs / FV_fs;
 
 };
 
 /*
-  Agabriel (2010) eq 2.26.
+  Agabriel (2010) eq. 2.26 &  Table 1.2
 
   Both in Agabriel (2010) and in GrazeIn, concentrate fill values not only vary with the fill value of the forage base,
   but also with the amount of concentrates, the milk yield of the cow and the energy balance of the cow, which are
@@ -351,31 +381,59 @@ var DEF = function (UFL_fs, LFU_fs) {
   For QI_c, the maximum of concentrates the user is willing to feed is used, because we assume that those cows that are
   mobilizing will receive the maximum concentrate supplementation.
 
-  GSR           [-]         global substitution rate (0-1)
-  QI_c          [kg (DM)]   total amount of concentrates that are fed
-  DEF           [UFL LFU-1] average energy density of the forages in the diet (can be slightly higher than 1)
-  PLPOT         [kg day-1]  milk yield, potential
-  parity        [#]         parity
-  BWC           [kg]        body weight change
+  TODO: replace BWC with something like "energy balance of the cow is negative"
+
+  GSR   [-]                   global substitution rate (0-1)
+  QI_c  [kg (DM)]             total amount of concentrates that are fed
+  DEF   [UFL LFU-1 or UEB-1]  average energy density of the forages in the diet (can be slightly higher than 1)
+  PLPOT [kg day-1]            milk yield, potential
+  p     [#]                   parity
+  BWC   [kg]                  body weight change
+  FVF   [UEB kg-1]            forage fill value in diet (only needed if p = 0 i.e. youg stock)          
 */
 
-var GSR = function (QI_c, DEF, PLPOT, parity, BWC) {
+var GSR = function (QI_c, DEF, PLPOT, p, BWC, FVF) {
 
-  var GSR = 0
+  var GSR = 1
     , GSR_zero = 0.55
-    , d = (parity > 1 ? 1.10 : 0.96)
+    , d = (p > 1 ? 1.10 : 0.96)
     ;
 
-  /* should be larger 0 (dry cows have a pot. milk yield as well) */
-  if (PLPOT <= 0)
-    PLPOT = 0.1;
+  if (p === 0 && !is_null_or_undefined(FVF)) { /* young stock */
 
-  GSR_zero = d * pow(PLPOT, -0.62) * exp(1.32 * DEF);
+    if (FVF <= 1.00)
+      GSR = 0.52;
+    else if (1.00 < FVF <= 1.05)
+      GSR = 0.45;
+    else if (1.05 < FVF <= 1.10)
+      GSR = 0.38;
+    else if (1.10 < FVF <= 1.15)
+      GSR = 0.31;
+    else if (1.15 < FVF <= 1.20)
+      GSR = 0.24;
+    else if (1.20 < FVF <= 1.25)
+      GSR = 0.18;
+    else if (1.25 < FVF <= 1.30)
+      GSR = 0.11;
+    else if (1.30 < FVF <= 1.40)
+      GSR = 0.05;
+    else if (FVF > 1.40)
+      GSR = -0.07;
 
-  if (BWC < 0) /* energy balance of the cow is negative, irrespective of the reason */
-    GSR = -0.43 + 1.82 * GSR_zero + 0.035 * QI_c - 0.00053 * PLPOT * QI_c;
-  else
-    GSR = GSR_zero;
+  } else { /* cows */
+
+    /* should be larger 0 (dry cows have a pot. milk yield as well) */
+    if (PLPOT <= 0)
+      PLPOT = 1;
+
+    GSR_zero = d * pow(PLPOT, -0.62) * exp(1.32 * DEF);
+
+    if (BWC < 0) /* energy balance of the cow is negative, irrespective of the reason */
+      GSR = -0.43 + 1.82 * GSR_zero + 0.035 * QI_c - 0.00053 * PLPOT * QI_c;
+    else
+      GSR = GSR_zero;
+  
+  }
 
   return GSR;
 
