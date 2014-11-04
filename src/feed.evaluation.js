@@ -32,6 +32,10 @@
   even better than the NRC and Finnish system, despite being much simpler. The fact that the German uCP system performed
   well compared with more sophisticated systems, despite its simplicity, encourages its use for SOLID-DSS.
 
+  Feed intake is predicted according to GrazeIn, a system based on the fill value system of INRA (Agabriel 2010). In
+  order to calculate the fill values of the forages, the parameters QIL (for dairy cows) and QIB (for dairy heifers)
+  are calculated, see below.
+
   REFERENCES
 
   Schwab, G. C., P. Huhtanen, C. W. Hunt, and T. Hvelplund. 2005. Nitrogen requirements of cattle. Pages 13-70 in
@@ -530,18 +534,19 @@ var fr = (function () {
   };
 
   /*
-    In SOLID-DSS, feed intake is predicted according to GrazeIn (details see dairy.intake). For the calculation of the
-    fill values of the forages, the parameter QIL is required.
+    In SOLID-DSS, feed intake is predicted according to GrazeIn (details see dairy.intake and youngstock.intake). For
+    the calculation of the fill values of the forages, the parameters QIL (for dairy cows) and QIB (for dairy heifers)
+    are required.
 
-    Equations for calculating QIL are taken from Agabriel (2010), Table 8.14.
+    Equations for calculating QIL and QIB are taken from Agabriel (2010), Table 8.14.
 
     Except for straw: Agabriel does not give an equation to calculate the fill value of straw. So a regression between
-    OMD and FV for straw from wheat, barley and oats (both untreated and treated with ammoniak) was formulated (values
-    taken from the INRA feed tables in Agabriel (2010), and a QIL = ... equation was made out of the regression.
+    OMD and FV of every straw available in the INRA feed tables in Agabriel (2010) was formulated, and QIL = ... and
+    QIB = ... equations were made out of the regression.
 
     In GrazeIn, OMD is called dOM and is expressed in %, e.g. 72. Because using the same terminology in all country-
     specific systems makes SOLID-DSS less susceptible to errors, OMD is used in kg kg-1 (e.g. 0.72), just like in the
-    other systems. Consequently, the equations for QIL were adjusted.
+    other systems. Consequently, the equations for QIL and QIB were adjusted.
 
     QIL       [g kg-1]      ingestibility in g per kg metabolic live weight
     OMD       [kg kg-1]     digestibility of organic matter, e.g. 0.72
@@ -549,26 +554,52 @@ var fr = (function () {
     DM        [g kg-1]      dry matter content
     type      [enum]        type of forage (fresh, silage, hay, maizesilage)
     delta_FR1 []           species adjustment parameter fresh:
-                              perm. grassland = 0
-                              grasses = -3.7
-                              legumes = 1.0
+                              cows (QIL)
+                                perm. grassland = 0
+                                grasses = -3.7
+                                legumes = 1.0
+                              young stock (QIB)
+                                perm. grassland = 0
+                                grasses = -1.6
+                                legumes = 4.1
     delta_S1  []            species adjustment parameter silages:
-                              perm. grassland = 0
-                              grasses = -1.4
-                              legumes = 2.8
+                              cows (QIL)
+                                perm. grassland = 0
+                                grasses = -1.4
+                                legumes = 2.8
+                              young stock (QIB)
+                                perm. grassland = 0
+                                grasses = -1.9
+                                legumes = 2.8
     delta_H1  []            species adjustment parameter hay:
-                              perm. grassland = 0
-                              grasses = -0.9
-                              legumes = 2.6
+                              cows (QIL)
+                                perm. grassland = 0
+                                grasses = -0.9
+                                legumes = 2.6
+                              young stock (QIB)
+                                perm. grassland = 0
+                                grasses = -1.4
+                                legumes = 3.4
     delta_S2  []            technical adjustment parameter silage:
-                              unwilted & w/o additives = -10.1
-                              unwilted & w additives = -0.8
-                              wilted = 1.6
-                              haylage = 0
+                              cows (QIL)
+                                unwilted & w/o additives = -10.1
+                                unwilted & w additives = -0.8
+                                wilted = 1.6
+                                haylage = 0
+                              young stock (QIB)
+                                unwilted & w/o additives = -9.9
+                                unwilted & w additives = -0.9
+                                wilted = 1.9
+                                haylage = 0
     delta_H2  []            technical adjustment parameter hay:
-                              ventilated = 6.6
-                              wilted in sun & good weather = 5.5
-                              wilted in sun = 0
+                              cows (QIL)
+                                ventilated = 6.6
+                                wilted in sun & good weather = 5.5
+                                wilted in sun = 0
+                              young stock (QIB)
+                                ventilated = 6.6
+                                wilted in sun & good weather = 5.2
+                                wilted in sun = 0
   */
 
   var QIL = function (OMD, CP, DM, type, delta_FR1, delta_S1, delta_H1, delta_S2, delta_H2) {
@@ -592,16 +623,35 @@ var fr = (function () {
 
   };
 
+  var QIB = function (OMD, CP, DM, type, delta_FR1, delta_S1, delta_H1, delta_S2, delta_H2) {
+
+    var QIB = 0;
+
+    if (type === 'fresh')
+      QIB = 6.44 + 0.782 * (OMD * 100) + 0.112 * CP + 0.679 * (DM / 10) + delta_FR12;
+    else if (type === 'grasssilage')
+      QIB = 47 + 0.228 * (OMD * 100) + 0.148 * CP + delta_S12 + delta_S22;
+    else if (type === 'hay')
+      QIB = 30.3 + 0.559 * (OMD * 100) + 0.132 * CP + delta_H12 + delta_H22;
+    else if (type === 'maizesilage')
+      QIB = -45.49 + 1.34 * (OMD * 100) + 1.15 * (DM / 10);
+    else if (type === 'straw')
+      QIB = 95 / (2.38 - 0.0176 * (OMD * 100)); 
+    else 
+      QIB = 6.44 + 0.782 * (OMD * 100) + 0.112 * CP + 0.679 * (DM / 10);
+
+    return QIB;
+
+  };
 
   return {
       E_f: UFL_f
     , E_c: UFL_c
     , QIL: QIL
+    , QIB: QIB
   };
 
 }());
-
-
 
 return {
     de: de
