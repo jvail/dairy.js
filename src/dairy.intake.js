@@ -23,8 +23,8 @@
 
   Because GrazeIn in based on the INRA fill value system, in some cases equations from Agabriel (2010) are used.
 
-  Fill values (FV) for cows are expressed in the unit LFU, lactating fill unit (UEL, unite encombrement lait) and in UEB 
-  (unite encombrement bovin) for young stock.
+  Fill values (FV) for cows are expressed in the unit LFU, lactating fill unit (UEL, unite encombrement lait) and CFU,
+  cattle fill unit (UEB, unite encombrement bovin) for young stock.
 
   REFERENCES
 
@@ -121,7 +121,7 @@ var DMI = function (Fs, FVs_f, Cs, FVs_c, FV_h, HI_r, HI_g) {
   represent average milk yields instead of actual ones, so they can be interpreted as a potential under the given
   circumstances.
 
-  IC    [LFU or UEB]  intake capacity ~ DMI @ FV = 1
+  IC    [LFU or CFU]  intake capacity ~ DMI @ FV = 1
   BW    [kg]          body weight
   PLPOT [kg day-1]    milk yield, potential
   BCS   [-]           body condition score (1-5)
@@ -215,7 +215,7 @@ var IM = function (AGE) {
 
   The QIL and QIB values are calculated in feed.evaluation, details see there.
   
-  FV_f  [LFU or UEB kg-1 (DM)] forage fill value (is LFU for cows and UEB for young stock)
+  FV_f  [LFU or CFU kg-1 (DM)] forage fill value (is LFU for cows and CFU for young stock)
   QIX   [g kg-1]               ingestibility in g per kg metabolic live weight (is QIL for cows and QIB for young stock)               
   p     [#]                    parity
 */
@@ -238,7 +238,7 @@ var FV_f = function (QIX, p) {
   Because the total diet is unknown prior to the allocation of feeds, the weighted mean of the FV of all available
   forages for the group of cows and the time period in question is used for FV_fr.
 
-  FV_c  [LFU or UEB kg-1 (DM)] concentrate fill value (lactating fill unit, unite encombrement lait)
+  FV_c  [LFU or CFU kg-1 (DM)] concentrate fill value (lactating fill unit, unite encombrement lait)
   FV_fs [LFU]                  weighted FV of forages in ration
   GSR   [-]                    global substitution rate (0-1)
 */
@@ -258,7 +258,7 @@ var FV_c = function (FV_fs, GSR) {
   linear.
   The regression was calculated from all forages available in Agabriel 2010. Details and R script in ../doc/FV_f.
 
-  FV_fs_diet  [LFU or UEB kg-1 (DM)] Estimated fill value of forages in diet
+  FV_fs_diet  [LFU or CFU kg-1 (DM)] Estimated fill value of forages in diet
   E_fs        [UFL]           Total energy content of forages in diet
   FV_fs       [LFU]           Total fill values of forages in diet
   p           [#]             parity
@@ -348,9 +348,9 @@ var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, p, BWC) {
   DEF is the average energy density of the forages in the diet, which is calculated as the weighted mean of all
   available forages for the group of cows and the time period in question.
 
-  DEF     [UFL LFU-1]             average energy density of the forages in the diet (can be slightly higher than 1)
+  DEF     [UFL LFU-1 or CFU-1]    average energy density of the forages in the diet (can be slightly higher than 1)
   UFL_fs  [UFL kg-1 (DM)]         sum of the energy contents of all available forages
-  FV_fs   [LFU or UEB kg-1 (DM)]  sum of the fill values of all available forages
+  FV_fs   [LFU or CFU kg-1 (DM)]  sum of the fill values of all available forages
 */
 
 var DEF = function (UFL_fs, FV_fs) {
@@ -378,11 +378,11 @@ var DEF = function (UFL_fs, FV_fs) {
 
   GSR   [-]                   global substitution rate (0-1)
   QI_c  [kg (DM)]             total amount of concentrates that are fed
-  DEF   [UFL LFU-1 or UEB-1]  average energy density of the forages in the diet (can be slightly higher than 1)
+  DEF   [UFL LFU-1 or CFU-1]  average energy density of the forages in the diet (can be slightly higher than 1)
   PLPOT [kg day-1]            milk yield, potential
   p     [#]                   parity
   BWC   [kg]                  body weight change
-  FVF   [UEB kg-1]            forage fill value in diet (only needed if p = 0 i.e. youg stock)          
+  FVF   [CFU kg-1]            forage fill value in diet (only needed if p = 0 i.e. youg stock)          
 */
 
 var GSR = function (QI_c, DEF, PLPOT, p, BWC, FVF) {
