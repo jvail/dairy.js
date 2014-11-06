@@ -5,8 +5,8 @@ dairy.js is a JavaScript library covering routines to simulate dairy cow herds f
 ## Features
 
   * milk yield and solids
-  * requirements (different systems)
-  * feed evaluation (different systems)
+  * requirements (different systems: DE, FI, FR, GB)
+  * feed evaluation (different systems: DE, FI, FR, GB)
   * intake (INRA)
   * growth and mobilization
   * grouping
