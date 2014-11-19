@@ -373,6 +373,12 @@ var DEF = function (UFL_fs, FV_fs) {
 
   For QI_c, the maximum of concentrates the user is willing to feed is used, because we assume that those cows that are
   mobilizing will receive the maximum concentrate supplementation.
+  
+  For dairy heifers, the global substitution rate also depends on the fill value of the forage base. Agabriel (2010)
+  doesn´t supply equations for calculating GSR, but gives a Table (1.2) with discrete values. Based on these values, a
+  linear regression for the calculation of GSR was produced which is valid for fill values of the forage base between
+  0.95 and 1.4 and which assumes a concentrate proportion of 15%. The coefficient of determination of the linear
+  regression is 0.99.
 
   TODO: replace BWC with something like "energy balance of the cow is negative"
 
@@ -394,24 +400,7 @@ var GSR = function (QI_c, DEF, PLPOT, p, BWC, FVF) {
 
   if (p === 0 && !is_null_or_undefined(FVF)) { /* young stock */
 
-    if (FVF <= 1.00)
-      GSR = 0.52;
-    else if (1.00 < FVF <= 1.05)
-      GSR = 0.45;
-    else if (1.05 < FVF <= 1.10)
-      GSR = 0.38;
-    else if (1.10 < FVF <= 1.15)
-      GSR = 0.31;
-    else if (1.15 < FVF <= 1.20)
-      GSR = 0.24;
-    else if (1.20 < FVF <= 1.25)
-      GSR = 0.18;
-    else if (1.25 < FVF <= 1.30)
-      GSR = 0.11;
-    else if (1.30 < FVF <= 1.40)
-      GSR = 0.05;
-    else if (FVF > 1.40)
-      GSR = -0.07;
+    GSR = 1.765 - 1.318 * FVF;
 
   } else { /* cows */
 
