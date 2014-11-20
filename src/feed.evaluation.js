@@ -261,12 +261,13 @@ var fi = (function () {
     MTT (2014)
 
     Energy is expressed in MJ metabolizable energy (ME)
-
-    TODO: Können wir die Verdaulichkeit der NfE irgendwo hernehmen, oder sollen wir stattdessen die Verdaulichkeit der
-    organischen Masse verwenden?
+    
+    Because the plant growth models in SOLID-DSS don´t supply the digestibility of NfE, the digestibility of the organic
+    matter is used instead. 
 
     ME_c  [MJ kg-1 (DM)]      metabolizable energy of a concentrate, e.g. 12.2
     OM    [g kg-1 (DM)]       organic matter, e.g. 962
+    OMD   [g kg-1 (DM)]       digestibility of organic matter, e.g. 0.80
     CP    [g kg-1 (DM)]       crude protein content, e.g. 125
     CPD   [kg kg-1]           digestibility of crude protein, e.g. 0.71
     CF    [g kg-1 (DM)]       crude fibre, e.g. 103
@@ -284,6 +285,7 @@ var fi = (function () {
     var dEE = EE * EED;
     var dCF = CF * CFD;
     var NFE = OM - CP - EE - CF;
+    var NFED = OMD;
     var dNFE = NFE * NFED;
 
     var ME_c = (15.2 * dCP + 34.2 * dEE + 12.8 * dCF + 15.9 * dNFE) * 1e-3;
