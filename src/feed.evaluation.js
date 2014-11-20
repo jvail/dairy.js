@@ -22,15 +22,15 @@
   growth models available today can supply the data needed to characterize feeds according to the British system of
   protein evaluation.
 
-  That is why the German uCP system, which is the simplest out of the four country-specific sytems of feed evaluation
-  chosen for SOLID-DSS, is used for all countries in SOLID-DSS. Even though the amount of utilizable protein at the
+  That is why the German uCP system, which is the simplest out of the four above-mentioned country-specific systems of
+  feed evaluation, is used for all countries in SOLID-DSS. Even though the amount of utilizable protein at the
   duodenum is defined as the sum of ruminally undegraded protein and microbial protein, the uCP content of a feed is
   calculated with simple empirical equations.
 
   In a comparison between the German uCP system with the Finnish system and the NRC (2001), using data from US
   production experiments, Schwab et al. (2005) found that the German uCP system predicted milk protein yield as well or
   even better than the NRC and Finnish system, despite being much simpler. The fact that the German uCP system performed
-  well compared with more sophisticated systems, despite its simplicity, encourages its use for SOLID-DSS.
+  well in comparison with more sophisticated systems, despite its simplicity, encourages its use for SOLID-DSS.
 
   Feed intake is predicted according to GrazeIn, a system based on the fill value system of INRA (Agabriel 2010). In
   order to calculate the fill values of the forages, the parameters QIL (for dairy cows) and QIB (for dairy heifers)
@@ -38,26 +38,33 @@
 
   REFERENCES
 
-  Schwab, G. C., P. Huhtanen, C. W. Hunt, and T. Hvelplund. 2005. Nitrogen requirements of cattle. Pages 13-70 in
-  Nitrogen and Phosphorus Nutrition of Cattle. E. Pfeffer and A. N. Hristov, ed. CABI Publishing, Wallingford, UK.
-
+  Agabriel, J. 2010. Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables
+  INRA 2010. Editions Quae, France.
+  
+  Feed into Milk 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
+  Ed. C. Thomas. Nottingham University Press, UK.
+  
   GfE [Society of Nutrition Physiology] 2001. Empfehlungen zur Energie- und Nährstoffversorgung der Milchkühe und
   Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers] DLG-Verlag, Frankfurt/
   Main, Germany.
-
-  Lebzien, P., Voigt, J., Gabel, M., & Gädeken, D. 1996. Zur Schätzung der Menge an nutzbarem Rohprotein am Duodenum
+  
+  Lebzien, P., Voigt, J., Gabel, M. und Gädeken, D. 1996. Zur Schätzung der Menge an nutzbarem Rohprotein am Duodenum
   von Milchkühen. [On the estimation of utilizable crude protein at the duodenum of dairy cows] Journal of Animal
   Physiology and Animal Nutrition 76:218-223.
+  
+  MTT 2006. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations). Agrifood Research Finland,
+  Jokioninen, Finland, 84 p.
+  
+  MTT 2014. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations) [online]. Agrifood
+  Research Finland, Jokioinen. Accessed last on November 20, 2014, available at:
+  https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
+  
+  Schwab, G.C., Huhtanen, P., Hunt, C.W. and Hvelplund, T. 2005. Nitrogen requirements of cattle. Pages 13-70 in
+  Pfeffer, E., and Hristov, A.N. (ed.). Nitrogen and Phosphorus Nutrition of Cattle. CABI Publishing, Wallingford, UK.
 
-  Feed into Milk Consortium, 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
-  Ed. C. Thomas. Nottingham University Press, UK.
-
-  G. Tran et D. Sauvant (2002) p. 22 in Sauvant D., Perez J.-M., Tran G. (eds.), 2002. Tables de composition et de
+  Tran, G. et Sauvant, D. 2002. Page 22 in Sauvant D., Perez J.-M. et Tran G. (eds.) Tables de composition et de
   valeur nutritive des matières premières destinées aux animaux d´élevage: porcs, volailles, bovins, ovins, caprins,
-  lapins, chevaux, poissons. Paris, Inra-AFZ, 301 p.
-
-  Agabriel, J. (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables
-  INRA 2010. Editions Quae, France.
+  lapins, chevaux, poissons. Paris, Inra-AFZ, France, 301 p.
 
   LICENSE
 
@@ -79,11 +86,7 @@ var feed = feed || {};
 feed.evaluation = (function () {
 
 /*
-  The German system of feed evaluation is described in:
-
-  GfE [Society of Nutrition Physiology] 2001. Empfehlungen zur Energie- und Nährstoffversorgung der Milchkühe und
-  Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers] DLG-Verlag, Frankfurt/
-  Main, Germany.
+  The German system of feed evaluation is described in GfE (2001)
 
   Energy is expressed in MJ net energy lactation (NEL)
 
@@ -130,7 +133,7 @@ var de = (function () {
     var dCF = CF * CFD;
     var dOM = OM * OMD;
 
-    /* metabolizable energy [MJ kg-1 (DM)], e.g. 12.00 */
+    /* metabolizable energy [MJ kg-1 (DM)], e.g. 12.0 */
     ME = 0.0312 * dEE + 0.0136 * dCF + 0.0147 * (dOM - dEE - dCF) + 0.00234 * CP;
 
     return ME;
@@ -166,10 +169,6 @@ var de = (function () {
     1a, originally published by Lebzien et al. (1996). (In the above mentioned comparison between different systems of
     protein evaluation done by Schwab et al. (2005), equation 1a was used as well.)
 
-    Lebzien, P., Voigt, J., Gabel, M., & Gädeken, D. 1996. Zur Schätzung der Menge an nutzbarem Rohprotein am Duodenum
-    von Milchkühen. [On the estimation of utilizable crude protein at the duodenum of dairy cows] Journal of Animal
-    Physiology and Animal Nutrition 76:218-223.
-
     uCP [g kg-1 (DM)]   utilizable crude protein
     ME  [MJ kg-1 (DM)]  metabolizable energy
     CP  [g kg-1 (DM)]   crude protein
@@ -186,11 +185,11 @@ var de = (function () {
     Apart from satisfying the cow´s requirement of uCP, the German system also calculates the ruminal nitrogen balance
     in order to ensure an adequate supply of ruminally available protein for the ruminal microbes.
 
-    Equation for calculating the ruminal nitrogen balance (RNB) taken from GfE (2001) page 45.
+    Equation for calculating the ruminal nitrogen balance (RNB) taken from GfE (2001) page 45
 
-    RNB [g kg-1 (DM)] ruminal nitrogen balance
-    CP  [g kg-1 (DM)] crude protein
-    uCP [g kg-1 (DM)] utilizable crude protein
+    RNB [g kg-1 (DM)] ruminal nitrogen balance, e.g. 4
+    CP  [g kg-1 (DM)] crude protein, e.g. 235
+    uCP [g kg-1 (DM)] utilizable crude protein, e.g. 220
   */
 
   var RNB = function (CP, uCP) {
@@ -213,11 +212,11 @@ var de = (function () {
 var fi = (function () {
 
   /*
-    The Finnish system of feed evaluation is described online on:
+    The last description of the Finnish system of feed evaluation published in print is MTT (2006). Since then all
+    updates have been published online, hereafter quoted as MTT (2014). 
 
-    https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
-
-    All equations for calculating the energy contents of feeds are taken from the site "Energy value, ruminants"
+    Equations for calculating the energy contents of forages taken from the sub-site "Energy value, ruminants" of
+    MTT (2014)
 
     Energy is expressed in MJ metabolizable energy (ME)
 
@@ -258,7 +257,8 @@ var fi = (function () {
   };
 
   /*
-    All equations for calculating the energy contents of feeds are taken from the site "Energy value, ruminants"
+    Equations for calculating the energy contents of concentrates taken from the sub-site "Energy value, ruminants" of
+    MTT (2014)
 
     Energy is expressed in MJ metabolizable energy (ME)
 
@@ -302,10 +302,7 @@ var fi = (function () {
 var gb = (function () {
 
   /*
-    The British system of feed evaluation is described in:
-
-    Feed into Milk Consortium, 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
-    Ed. C. Thomas. Nottingham University Press, UK.
+    The British system of feed evaluation is described in Feed into Milk (2004)
 
     Energy is expressed in MJ metabolisable energy (ME)
 
@@ -323,8 +320,8 @@ var gb = (function () {
 
   var ME_f = function (OM, OMD, is_grass_or_hay) {
 
-    /* In FiM, the content of digestible organic matter in dry matter is called DOMD, expressed in %, so the equation is
-    ME = 0.16 * DOMD. Because using the same terminology in all country-specific systems makes SOLID-DSS less
+    /* In Feed into Milk, the content of digestible organic matter in dry matter is called DOMD, expressed in %, so the
+    equation is ME = 0.16 * DOMD. Because using the same terminology in all country-specific systems makes SOLID-DSS less
     susceptible to errors, the term dOM is used instead [g kg-1 (DM)], so the equation is ME = 0.016 * dOM*/
     var dOM = OM * OMD;
 
@@ -347,10 +344,7 @@ var gb = (function () {
 var fr = (function () {
 
   /*
-    The French system of feed evaluation is described in:
-
-    Agabriel, J. (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables
-    INRA 2010. Editions Quae, France.
+    The French system of feed evaluation is described in Agabriel (2010)
 
     Energy is expressed in unité fourragére lait (UFL). One UFL equals the net energy for lactation of 1 kg standard
     barley.
@@ -469,11 +463,7 @@ var fr = (function () {
     ash       [g kg-1 (DM)]   ash, e.g. 30
     req_m     [UFL]           maintenance requirements
     req_t     [UFL]           total requirements
-    delta_C1  []              feed material group correction coefficient taken from
-
-    G. Tran et D. Sauvant (2002) p. 22 in Sauvant D., Perez J.-M., Tran G. (eds.), 2002. Tables de composition et de
-    valeur nutritive des matières premières destinées aux animaux d´élevage: porcs, volailles, bovins, ovins, caprins,
-    lapins, chevaux, poissons. Paris, Inra-AFZ, 301 p.
+    delta_C1  []              feed material group correction coefficient taken from Tran et Sauvant (2002)
 
     corn gluten meal = 308
     alfalfa protein concentrate = 248
@@ -534,23 +524,25 @@ var fr = (function () {
   };
 
   /*
-    In SOLID-DSS, feed intake is predicted according to GrazeIn (details see dairy.intake and youngstock.intake). For
-    the calculation of the fill values of the forages, the parameters QIL (for dairy cows) and QIB (for dairy heifers)
-    are required.
+    In SOLID-DSS, feed intake is predicted according to GrazeIn (details see dairy.intake). For the calculation of the
+    fill values of forages, the parameters QIL (for dairy cows) and QIB (for dairy heifers) are required.
 
     Equations for calculating QIL and QIB are taken from Agabriel (2010), Table 8.14.
-
-    Except for straw: Agabriel does not give an equation to calculate the fill value of straw. So a regression between
-    OMD and FV of every straw available in the INRA feed tables in Agabriel (2010) was formulated, and QIL = ... and
-    QIB = ... equations were made out of the regression.
-
+    
     In GrazeIn, OMD is called dOM and is expressed in %, e.g. 72. Because using the same terminology in all country-
     specific systems makes SOLID-DSS less susceptible to errors, OMD is used in kg kg-1 (e.g. 0.72), just like in the
     other systems. Consequently, the equations for QIL and QIB were adjusted.
 
-    QIL       [g kg-1]      ingestibility in g per kg metabolic live weight
+    The one expection is straw, for which Agabriel (2010) doesn´t supply an equation for calculating the fill value.
+    Therefore linear regressions for the fill values of straw depending on OMD were produced based on data from the
+    feed tables in Agabriel (2010) and expressed as QIL = ... and QIB = ... The linear regressions are valid for OMD
+    values between 0.42 and 0.68 and fill values between 1.00 and 1.60 (QIL) and 1.07 and 2.00 (QIB). The coefficients
+    of determination of the regressions are 0.23 (QIL) and 0.23 (QIB).
+
+    QIL       [g kg-1]      ingestibility in g per kg metabolic live weight, dairy cows
+    QIB       [g kg-1]      ingestibility in g per kg metabolic live weight, heifers
     OMD       [kg kg-1]     digestibility of organic matter, e.g. 0.72
-    CP        [g kg-1 (DM)] crude protein content
+    CP        [g kg-1 (DM)] crude protein content, e.g. 235
     DM        [g kg-1]      dry matter content
     type      [enum]        type of forage (fresh, silage, hay, maizesilage)
     delta_FR1 []           species adjustment parameter fresh:
@@ -615,7 +607,7 @@ var fr = (function () {
     else if (type === 'maizesilage')
       QIL = -76.4 + 2.39 * (OMD * 100) + 1.44 * (DM / 10);
     else if (type === 'straw')
-      QIL = 140 / (1.982 - 0.008 * (OMD * 100)); 
+      QIL = 140 / (1.938 - 0.013 * (OMD * 100)); 
     else 
       QIL = 66.3 + 0.655 * (OMD * 100) + 0.098 * CP + 0.626 * (DM / 10);
 
@@ -636,7 +628,7 @@ var fr = (function () {
     else if (type === 'maizesilage')
       QIB = -45.49 + 1.34 * (OMD * 100) + 1.15 * (DM / 10);
     else if (type === 'straw')
-      QIB = 95 / (2.38 - 0.0176 * (OMD * 100)); 
+      QIB = 95 / (2.380 - 0.018 * (OMD * 100)); 
     else 
       QIB = 6.44 + 0.782 * (OMD * 100) + 0.112 * CP + 0.679 * (DM / 10);
 
