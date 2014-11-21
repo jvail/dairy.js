@@ -277,7 +277,7 @@ var fi = (function () {
     NFED  [kg kg-1]           digestibility of nitrogen free extracts, e.g. 0.83
   */
 
-  var ME_c = function (OM, CP, CPD, CF, CFD, EE, EED, /*NFE,*/ NFED) {
+  var ME_c = function (OM, OMD, CP, CPD, CF, CFD, EE, EED, /*NFE,*/ NFED) {
 
     /*contents of digestible crude protein, digestible ether extracts, digestible crude fiber, nitrogen free extracts
     and digestible nitrogen free extracts [g kg-1 (DM)]*/
