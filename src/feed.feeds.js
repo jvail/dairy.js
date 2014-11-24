@@ -1,9 +1,18 @@
 /*
-  Little feed database (Gruber Tabelle). Except DOM (in %) all values are on DM basis (g kg-1 (DM)).
+  Small feed database, mainly based on information from LfL (2014). NfE values were calculated (OM - ash - crude protein -
+  ether extracts - crude fiber), and the digestibility values, which are not included in LfL (2014), were taken from GfE (2001). 
+  
+  Values are expressed on dry matter basis (g kg-1 (DM)) except dry matter content (g kg-1 feed) and digestibilities (kg kg-1).
 
   REFERENCES
-
-  Gruber Tabelle, 2014. Bayerische Landesanstalt für Landwirtschaft (LfL) 
+  
+  LfL [Bavarian State Research Center for Agriculture]. 2014. Gruber Tabelle zur Fütterung der Milchkühe, Zuchtrinder, Schafe,
+  Ziegen [Gruber Table on the feeding of dairy cows, breeding cattle, sheep, goats]. 37th edition, Freising, Germany. Also
+  available online at: http://www.lfl.bayern.de/mam/cms07/publikationen/daten/informationen/p_36967.pdf
+  
+  GfE [Society of Nutrition Physiology]. 2001. Empfehlungen zur Energie- und Nährstoffversorgung der Milchkühe und
+  Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers] DLG-Verlag, Frankfurt/
+  Main, Germany.
 
   LICENSE
 
@@ -18,10 +27,6 @@
   Abstimmung von Grundfutterangebot und -bedarf auf biologisch wirtschaftenden Low Input Milchviehbetrieben.
   In: Wiesinger, K., Cais, K., Obermaier, S. (eds), Angewandte Forschung und Beratung für den ökologischen Landbau in 
   Bayern: Öko-Landbau-Tag 2014 am 9. April 2014 in Triesdorf; Tagungsband. LfL, Freising-Weihenstephan, pp. 19-22.
-
-  TODO:
-
-  - remove NEL, ME & uCP from feed table
 
 */
 
