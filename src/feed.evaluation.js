@@ -262,31 +262,31 @@ var fi = (function () {
 
     Energy is expressed in MJ metabolizable energy (ME)
     
-    Because the plant growth models in SOLID-DSS don´t supply the digestibility of NfE, the digestibility of the organic
-    matter is used instead. 
+    The feed table included in SOLID-DSS gives the NfE digestibility of the feeds, but the plant growth models in
+    SOLID-DSS don´t supply the digestibility of NfE, therefore the following calculation is mainly given for reasons of
+    completeness.
 
     ME_c  [MJ kg-1 (DM)]      metabolizable energy of a concentrate, e.g. 12.2
-    OM    [g kg-1 (DM)]       organic matter, e.g. 962
-    OMD   [g kg-1 (DM)]       digestibility of organic matter, e.g. 0.80
     CP    [g kg-1 (DM)]       crude protein content, e.g. 125
     CPD   [kg kg-1]           digestibility of crude protein, e.g. 0.71
     CF    [g kg-1 (DM)]       crude fibre, e.g. 103
     CFD   [kg kg-1]           digestibility of crude fiber, e.g. 0.30
     EE    [g kg-1 (DM)]       ether extract content, e.g. 60
     EED   [kg kg-1]           digestibility of ether extracts, e.g. 0.84
+    NFE   [g kg-1 (DM)]       nitrogen free extracts, e.g. 500
     NFED  [kg kg-1]           digestibility of nitrogen free extracts, e.g. 0.83
   */
 
-  var ME_c = function (OM, OMD, CP, CPD, CF, CFD, EE, EED, /*NFE,*/ NFED) {
+  var ME_c = function (CP, CPD, CF, CFD, EE, EED, NFE, NFED) {
 
-    /*contents of digestible crude protein, digestible ether extracts, digestible crude fiber, nitrogen free extracts
-    and digestible nitrogen free extracts [g kg-1 (DM)]*/
     var dCP = CP * CPD;
+    /*content of digestible crude protein*/
     var dEE = EE * EED;
+    /*content of digestible ether extracts*/
     var dCF = CF * CFD;
-    var NFE = OM - CP - EE - CF;
-    var NFED = OMD;
+    /*content of digestible crude fiber*/
     var dNFE = NFE * NFED;
+    /*content of digestible nitrogen free extracts*/
 
     var ME_c = (15.2 * dCP + 34.2 * dEE + 12.8 * dCF + 15.9 * dNFE) * 1e-3;
 
