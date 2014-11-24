@@ -16,10 +16,13 @@
   Dong, L.F., T. Yan, C.P. Ferris, and D.A. McDowell. 2014. Comparison of energy utilisation and energetic efficiency
   of dairy cows under different input systems. In: The proceedings of the 65th Conference of European Association of
   Animal Production. p. 395, Copenhagen, Denmark.
-
-  MTT 2006. Rehutaulukot ja ruokintasuositukset [Feed tables and feeding recommendations]. Agrifood Research Finland,
-  Jokioninen, Finland. Updated version available online at:
-  https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english/nutrient_requirements/Ruminants
+  
+  MTT 2006. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations). Agrifood Research Finland,
+  Jokioninen, Finland, 84 p.
+  
+  MTT 2014. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations) [online]. Agrifood
+  Research Finland, Jokioinen. Accessed last on November 20, 2014, available at:
+  https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
 
   Sjaunja, L.-O., L. Baevre, L. Junkarinen, J. Pedersen, and J. Setala. 1990. A Nordic proposal for an energy corrected
   milk (ECM) formula. Pages 156–157 in Proc. 27th Biennial Session of the International Committee for Animal Recording.
@@ -456,12 +459,13 @@ var de = (function () {
 }());
 
 /*
-  MTT (2006)
+  MTT (2014)
 
   cows
 
   Nutrient requirements of dairy cows according to the Finnish system of feed evaluation and requirements. Latest print
-  version using "feed values" instead of ME, which is used now.
+  version using "feed values" instead of ME, which is used now. The last description of the Finnish system of feed evaluation
+  published in print is MTT (2006). Since then all updates have been published online, hereafter quoted as MTT (2014). 
 
   Energy is expressed in MJ ME (metabolisable energy) and protein is expressed in g MP (metabolisable protein).
 
@@ -479,7 +483,7 @@ var de = (function () {
 var fi = (function () {
 
   /*
-    MTT (2006)
+    MTT (2014)
 
     cows
 
@@ -561,7 +565,7 @@ var fi = (function () {
   };
 
   /*
-    MTT (2006)
+    MTT (2014)
 
     ECM is calculated according to Sjaunja et al. (1990)
 
@@ -602,7 +606,7 @@ var fi = (function () {
   };
 
   /*
-    MTT (2006)
+    MTT (2014)
 
     According to Rinne (2014), the energy and protein requirements for young stock gestation are calculated similar to 
     the older cows.
@@ -638,7 +642,7 @@ var fi = (function () {
   };
 
   /*
-    MTT (2006)
+    MTT (2014)
 
     young stock 
 
