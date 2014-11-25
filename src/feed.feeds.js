@@ -1,18 +1,21 @@
 /*
-  Small feed database, mainly based on information from LfL (2014). NfE values were calculated (OM - ash - crude protein -
-  ether extracts - crude fiber), and the digestibility values, which are not included in LfL (2014), were taken from GfE (2001). 
+  Small feed database, mainly based on information from GfE (2001), except values for NDF, which were taken from Feedipedia
+  (2014) and MTT (2014).
   
   Values are expressed on dry matter basis (g kg-1 (DM)) except dry matter content (g kg-1 feed) and digestibilities (kg kg-1).
 
   REFERENCES
   
-  LfL [Bavarian State Research Center for Agriculture]. 2014. Gruber Tabelle zur Fütterung der Milchkühe, Zuchtrinder, Schafe,
-  Ziegen [Gruber Table on the feeding of dairy cows, breeding cattle, sheep, goats]. 37th edition, Freising, Germany. Also
-  available online at: http://www.lfl.bayern.de/mam/cms07/publikationen/daten/informationen/p_36967.pdf
-  
   GfE [Society of Nutrition Physiology]. 2001. Empfehlungen zur Energie- und Nährstoffversorgung der Milchkühe und
   Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers] DLG-Verlag, Frankfurt/
   Main, Germany.
+  
+  Feedipedia. 2014. An on-line encyclopedia of animal feeds. Accessed last on November 25, 2014, available at:
+  http://www.feedipedia.org/
+  
+  MTT 2014. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations) [online]. Agrifood Research Finland,
+  Jokioinen. Accessed last on November 20, 2014, available at:
+  https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
 
   LICENSE
 
