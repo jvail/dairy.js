@@ -1,6 +1,6 @@
 /*
-  Small feed database, mainly based on information from GfE (2001), except values for NDF, which were taken from Feedipedia
-  (2014) and MTT (2014).
+  Small feed database, mainly based on information from GfE (2001), except values for NDF, which were taken from the French
+  feed tables in Agabriel (2010).
   
   Values are expressed on dry matter basis (g kg-1 (DM)) except dry matter content (g kg-1 feed) and digestibilities (kg kg-1).
 
@@ -10,12 +10,8 @@
   Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers] DLG-Verlag, Frankfurt/
   Main, Germany.
   
-  Feedipedia. 2014. An on-line encyclopedia of animal feeds. Accessed last on November 25, 2014, available at:
-  http://www.feedipedia.org/
-  
-  MTT 2014. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations) [online]. Agrifood Research Finland,
-  Jokioinen. Accessed last on November 20, 2014, available at:
-  https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
+  Agabriel, J. (ed.) (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables
+  INRA 2010. Editions Quae, France.
 
   LICENSE
 
