@@ -1,14 +1,13 @@
 /*
-  Small feed database, mainly based on information from GfE (2001), except values for NDF, which were taken from the French
+  Small feed database, mainly based on information from DLG (1997), except values for NDF, which were taken from the French
   feed tables in Agabriel (2010).
   
   Values are expressed on dry matter basis (g kg-1 (DM)) except dry matter content (g kg-1 feed) and digestibilities (kg kg-1).
 
   REFERENCES
   
-  GfE [Society of Nutrition Physiology]. 2001. Empfehlungen zur Energie- und Nährstoffversorgung der Milchkühe und
-  Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers] DLG-Verlag, Frankfurt/
-  Main, Germany.
+  DLG [German Agricultural Society]. 1997. DLG-Futterwerttabellen – Wiederkäuer [Feed Tables Ruminants]. University Hohenheim
+  (ed.). 7th edition, DLG-Verlag, Frankfurt/Main, Germany.
   
   Agabriel, J. (ed.) (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables
   INRA 2010. Editions Quae, France.
