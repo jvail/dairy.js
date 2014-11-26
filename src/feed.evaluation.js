@@ -361,7 +361,7 @@ var fr = (function () {
     OM      [?]
     CP      [g kg-1 (DM)]   crude protein content, e.g. 134
     CF      [g kg-1 (DM)]   crude fibre content, e.g. 296
-    type    [enum]          simplified INRA calculation; maize or grass silage
+    type    [enum]          type of feed
     DM      [%]             dry matter content
     delta_F1
     pH      []              pH of grass silage
@@ -397,6 +397,10 @@ var fr = (function () {
         GE_o = 1.03 * (3910 + 2.45 * CP_o + 169.9 * pH)
       else
         GE_o = 3910 + 2.45 * CP_o + 169.9 * pH;
+  /*the gross energy content of wholecropsilage is calculated the same way as wilted grasssilage, that´s why the equations
+  are the same*/
+    } else if (type === 'wholecropsilage') {
+      GE_o = 1.03 * (3910 + 2.45 * CP_o + 169.9 * pH);
     } else if (type === 'dehydrated alfalfa') {
       GE_o = 4618 + 2.051 * CP_o;
     }
@@ -421,6 +425,9 @@ var fr = (function () {
     if (type === 'maizesilage')
       dE = 1.001 * (OMD * 100) - 2.86;
     if (type === 'grasssilage')
+      dE = 1.0263 * (OMD * 100) - 5.723;
+    /*dE of wholecropsilage is calculated the same way as wilted grasssilage, that´s why the equations are the same*/
+    if (type === 'wholecropsilage')
       dE = 1.0263 * (OMD * 100) - 5.723;
     if (type === 'dehydrated alfalfa')
       dE = 1.003 * (OMD * 100) - 3.00;
