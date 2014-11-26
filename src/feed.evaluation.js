@@ -553,7 +553,7 @@ var fr = (function () {
     OMD       [kg kg-1]     digestibility of organic matter, e.g. 0.72
     CP        [g kg-1 (DM)] crude protein content, e.g. 235
     DM        [g kg-1]      dry matter content
-    type      [enum]        type of forage (fresh, silage, hay, maizesilage)
+    type      [enum]        type of forage (fresh, grasssilage, hay, maizesilage)
     delta_FR1 []           species adjustment parameter fresh:
                               cows (QIL)
                                 perm. grassland = 0
