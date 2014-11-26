@@ -236,12 +236,12 @@ var fi = (function () {
     is used instead [g kg-1 (DM)]*/
     var dOM = OM * OMD;
 
-    /* grass silage and other feeds */
+    /* fresh forages, fresh maize, fresh sorghum and grasssilage*/
     var ME_f = 0.016 * dOM;
 
     /*in Finland, maize silage is not commonly used. However, in case of using maize silage, the equation for wholecrop
     cereal silages can be used for maize silage as well. Consequently, the equation for maize silage is the same as the
-    one for whole crop silages.*/
+    one for whole crop silage.*/
 
     if (type === 'hay')
       ME_f = 0.0169 * dOM - 1.05;
