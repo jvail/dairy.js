@@ -828,7 +828,7 @@ var gb = (function () {
       };
 
     } else {
-
+          /* TODO: exclude feed level adjustment in SOLID-DSS */
       var ME = 22.2136 - ME_total / DMI * 3.3290 + BW * 0.1357 + BWC * 48.5855
         , MP = 80.7936 + BW * 0.3571 + BWC * 223.1852
         ;
