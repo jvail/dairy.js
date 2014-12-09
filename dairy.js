@@ -455,6 +455,7 @@ var pow = Math.pow
   Metzner et. al. (1993)
 
   We assume BCS of BCS_max during dry period and a minimum BCS at day d_mx + 55.
+  BCS is everywhere expressed on a six point scale.
 
   BCS     [-]     body condition score
   DIM     [day]   days in milk
@@ -525,8 +526,9 @@ var W = function (age, age_c1, W_b, W_c1, W_m) {
 
 var W_b = function (W_m) {
 
-  /* parameters for cattle, table 7.3 */
-  var c_b = -2
+  var W_b = 0
+      /* parameters for cattle, table 7.3 */
+    , c_b = -2
     , m_b = 0.066
     ;
 
@@ -739,7 +741,17 @@ return {
 
 
 /*
-  The prediction of feed intake uses a simplified GrazeIn algorithm.
+  Feed intake of cows and young stock is predicted according to the French fill value system described in Agabriel (2010).
+
+  The general functional principal of the INRA fill value system is as follows: The sum of all fill values of the feeds
+  equals the intake capacity of the animal. While the intake capacity of the animals is based on animal-related
+  parameters, the fill values of the feeds are based on feed-related parameters.
+
+  Although not mentioned in Delagarde et al. (2011), we assume that the feed intake restrictions that apply for
+  grazing dairy cows also apply for grazing heifers, because they are based on non-nutritional factors linked to sward
+  availability and grazing management, not on nutritional factors linked to animal characteristics.
+
+  The prediction of feed intake at grazing uses a simplified GrazeIn algorithm.
 
   GrazeMore, "Improving sustainability of milk production systems in the European Union through increasing reliance on
   grazed pasture" was an EU research project that ran from 2000-2004. It involved the development of a grazing decision
@@ -753,12 +765,8 @@ return {
 
   Because GrazeIn in based on the INRA fill value system, in some cases equations from Agabriel (2010) are used.
 
-  The general functional principal of the INRA fill value system is as follows: The sum of all fill values of the feeds
-  equals the intake capacity of the cow. While the intake capacity of the cow is almost exclusively based on animal-
-  related parameters, the fill values of the feeds are almost exclusively based on feed-related parameters. Exceptions
-  are the appearance of "potential milk production modified by protein intake" in the calculation of the intake
-  capacity, and the appearance of milk yield and energy requirements in the calculation of the fill values of
-  concentrates.
+  Fill values (FV) for cows are expressed in the unit LFU, lactating fill unit (UEL, unite encombrement lait) and CFU,
+  cattle fill unit (UEB, unite encombrement bovin) for young stock.
 
   REFERENCES
 
@@ -774,8 +782,6 @@ return {
 
   Agabriel, J. (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs
   des aliments. Tables INRA 2010. Editions Quae, France.
-
-  Fill values (FV) are expressed in the unit LFU, lactating fill unit (UEL, unite encombrement lait)
 
   LICENSE
 
@@ -843,7 +849,7 @@ var DMI = function (Fs, FVs_f, Cs, FVs_c, FV_h, HI_r, HI_g) {
 };
 
 /*
-  Agabriel (2010), eq. 2.3
+  Agabriel (2010), eqs. 2.3 & 4.5
 
   Equation to calculate the intake capacity.
   
@@ -857,24 +863,34 @@ var DMI = function (Fs, FVs_f, Cs, FVs_c, FV_h, HI_r, HI_g) {
   represent average milk yields instead of actual ones, so they can be interpreted as a potential under the given
   circumstances.
 
-  TODO
-    - is PLPOT in ECM?
-
-  IC    [LFU]       intake capacity ~ DMI @ FV = 1
-  BW    [kg]        body weight
-  PLPOT [kg day-1]  milk yield, potential
-  BCS   [-]         body condition score (1-5)
-  WL    [week]      week of lactation
-  WG    [week]      week of gestation (0-40)
-  AGE   [month]     age in month
-  p     [#]         parity
+  IC    [LFU or CFU]  intake capacity ~ DMI @ FV = 1
+  BW    [kg]          body weight
+  PLPOT [kg day-1]    milk yield, potential
+  BCS   [-]           body condition score (1-5)
+  WL    [week]        week of lactation
+  WG    [week]        week of gestation (0-40)
+  AGE   [month]       age in month
+  p     [#]           parity
 */
 
 var IC = function (BW, PLPOT, BCS, WL, WG, AGE, p) {
 
   var IC = 0;
 
-  IC = (13.9 + (BW - 600) * 0.015 + PLPOT * 0.15 + (3 - BCS) * 1.5) * IL(p, WL) * IG(WG) * IM(AGE);
+  if (p > 0) { /* cows */
+
+    IC = (13.9 + (BW - 600) * 0.015 + PLPOT * 0.15 + (3 - BCS) * 1.5) * IL(p, WL) * IG(WG) * IM(AGE);
+  
+  } else if (p === 0) { /* young stock */
+
+    if (BW <= 150)
+      IC = 0.039 * pow(BW, 0.9) + 0.2;
+    else if (150 < BW <= 290)
+      IC = 0.039 * pow(BW, 0.9) + 0.1;
+    else
+      IC = 0.039 * pow(BW, 0.9);
+
+  }
 
   return IC;
 
@@ -939,15 +955,19 @@ var IM = function (AGE) {
 
   The general equation for calculating forage fill values.
 
-  The QIL-values are calculated in feed.evaluation, details see there.
+  The QIL and QIB values are calculated in feed.evaluation, details see there.
   
-  FV_f  [LFU kg-1 (DM)] forage fill value (unite encombrement lait)
-  QIL   [g kg-1]        ingestibility in g per kg metabolic live weight                
+  FV_f  [LFU or CFU kg-1 (DM)] forage fill value (is LFU for cows and CFU for young stock)
+  QIX   [g kg-1]               ingestibility in g per kg metabolic live weight (is QIL for cows and QIB for young stock)               
+  p     [#]                    parity
 */
 
-var FV_f = function (QIL) {
+var FV_f = function (QIX, p) {
 
-  return 140 / QIL;
+  if (p > 0) /* cows */
+    return 140 / QIX;
+  else       /* young stock */
+    return 95 / QIX
 
 };
 
@@ -960,9 +980,9 @@ var FV_f = function (QIL) {
   Because the total diet is unknown prior to the allocation of feeds, the weighted mean of the FV of all available
   forages for the group of cows and the time period in question is used for FV_fr.
 
-  FV_c  [LFU kg-1 (DM)] concentrate fill value (lactating fill unit, unite encombrement lait)
-  FV_fs [LFU]           weighted FV of forages in ration
-  GSR   [-]             global substitution rate (0-1)
+  FV_c  [LFU or CFU kg-1 (DM)] concentrate fill value (lactating fill unit, unite encombrement lait)
+  FV_fs [LFU]                  weighted FV of forages in ration
+  GSR   [-]                    global substitution rate (0-1)
 */
 
 var FV_c = function (FV_fs, GSR) {
@@ -976,17 +996,22 @@ var FV_c = function (FV_fs, GSR) {
 
   Equation to estimate the fill value of forages in a diet from the cow's requirements prior to ration optimization.
   This is based on the fact that on average a feed's fill value will descrease with increasing energy content. The 
-  estimated FV_fs is used to calculate a concentrate fill value (see FV_cs). We need it if we what to keep the diet LP linear.
-  The regression was calculated from all forages available in Agabriel 2010 (r^2 = 0.564, n = 643).
+  estimated FV_fs is used to calculate a concentrate fill value (see FV_cs). We need it if we what to keep the diet LP 
+  linear.
+  The regression was calculated from all forages available in Agabriel 2010. Details and R script in ../doc/FV_f.
 
-  FV_fs_diet  [LFU kg-1 (DM)] Estimated fill value of forages in diet
+  FV_fs_diet  [LFU or CFU kg-1 (DM)] Estimated fill value of forages in diet
   E_fs        [UFL]           Total energy content of forages in diet
   FV_fs       [LFU]           Total fill values of forages in diet
+  p           [#]             parity
 */
 
-var FV_fs_diet = function (E_fs, FV_fs) {
+var FV_fs_diet = function (E_fs, FV_fs, p) {
 
-  return - 0.489 * E_fs / FV_fs + 1.433;
+  if (p > 0)
+    return -0.489 * E_fs / FV_fs + 1.433;
+  else
+    return -0.783 * E_fs / FV_fs + 1.688;
 
 };
 
@@ -1006,11 +1031,11 @@ var FV_fs_diet = function (E_fs, FV_fs) {
   c_mx        [kg kg-1]       Maximum fraction (DM) of concentrates in diet (optional, defaults to 0.5 which is the 
                               range the INRA system is applicable)
   PLPOT       [kg day-1]      milk yield, potential
-  parity      [#]             parity
+  p           [#]             parity
   BWC         [kg]            body weight change       
 */
 
-var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, parity, BWC) {
+var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, p, BWC) {
 
   var FV_cs_diet = 0;
 
@@ -1034,8 +1059,8 @@ var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, parity, BWC) {
   while (true) {
 
     /* staring from a diet with zero kg conc. we add conc. till we reach c_mx */
-    s = GSR(c_kg, DEF(E_f, IC_f), PLPOT, parity, BWC);
-    f_fv = FV_fs_diet(E_f, IC_f);
+    f_fv = FV_fs_diet(E_f, IC_f, p);
+    s = GSR(c_kg, DEF(E_f, IC_f), PLPOT, p, BWC, f_fv);
     c_fv = f_fv * s;
     c = c_kg / (IC_f / f_fv + c_kg);
 
@@ -1065,19 +1090,19 @@ var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, parity, BWC) {
   DEF is the average energy density of the forages in the diet, which is calculated as the weighted mean of all
   available forages for the group of cows and the time period in question.
 
-  DEF       [UFL LFU-1]      average energy density of the forages in the diet (can be slightly higher than 1)
-  UFL_fs    [UFL kg-1 (DM)]  sum of the energy contents of all available forages
-  LFU_fs    [LFU kg-1 (DM)]  sum of the fill values of all available forages
+  DEF     [UFL LFU-1 or CFU-1]    average energy density of the forages in the diet (can be slightly higher than 1)
+  UFL_fs  [UFL kg-1 (DM)]         sum of the energy contents of all available forages
+  FV_fs   [LFU or CFU kg-1 (DM)]  sum of the fill values of all available forages
 */
 
-var DEF = function (UFL_fs, LFU_fs) {
+var DEF = function (UFL_fs, FV_fs) {
 
-  return UFL_fs / LFU_fs;
+  return UFL_fs / FV_fs;
 
 };
 
 /*
-  Agabriel (2010) eq 2.26.
+  Agabriel (2010) eq. 2.26 &  Table 1.2
 
   Both in Agabriel (2010) and in GrazeIn, concentrate fill values not only vary with the fill value of the forage base,
   but also with the amount of concentrates, the milk yield of the cow and the energy balance of the cow, which are
@@ -1090,32 +1115,49 @@ var DEF = function (UFL_fs, LFU_fs) {
 
   For QI_c, the maximum of concentrates the user is willing to feed is used, because we assume that those cows that are
   mobilizing will receive the maximum concentrate supplementation.
+  
+  For dairy heifers, the global substitution rate also depends on the fill value of the forage base. Agabriel (2010)
+  doesn´t supply equations for calculating GSR, but gives a Table (1.2) with discrete values. Based on these values, a
+  linear regression for the calculation of GSR was produced which is valid for fill values of the forage base between
+  0.95 and 1.4 and which assumes a concentrate proportion of 15%. The coefficient of determination of the linear
+  regression is 0.99.
 
-  GSR           [-]         global substitution rate (0-1)
-  QI_c          [kg (DM)]   total amount of concentrates that are fed
-  DEF           [UFL LFU-1] average energy density of the forages in the diet (can be slightly higher than 1)
-  PLPOT         [kg day-1]  milk yield, potential
-  parity        [#]         parity
-  BWC           [kg]        body weight change
+  TODO: replace BWC with something like "energy balance of the cow is negative"
+
+  GSR   [-]                   global substitution rate (0-1)
+  QI_c  [kg (DM)]             total amount of concentrates that are fed
+  DEF   [UFL LFU-1 or CFU-1]  average energy density of the forages in the diet (can be slightly higher than 1)
+  PLPOT [kg day-1]            milk yield, potential
+  p     [#]                   parity
+  BWC   [kg]                  body weight change
+  FVF   [CFU kg-1]            forage fill value in diet (only needed if p = 0 i.e. youg stock)          
 */
 
-var GSR = function (QI_c, DEF, PLPOT, parity, BWC) {
+var GSR = function (QI_c, DEF, PLPOT, p, BWC, FVF) {
 
-  var GSR = 0
+  var GSR = 1
     , GSR_zero = 0.55
-    , d = (parity > 1 ? 1.10 : 0.96)
+    , d = (p > 1 ? 1.10 : 0.96)
     ;
 
-  /* should be larger 0 (dry cows have a pot. milk yield as well) */
-  if (PLPOT <= 0)
-    PLPOT = 0.1;
+  if (p === 0 && !is_null_or_undefined(FVF)) { /* young stock */
 
-  GSR_zero = d * pow(PLPOT, -0.62) * exp(1.32 * DEF);
+    GSR = 1.765 - 1.318 * FVF;
 
-  if (BWC < 0) /* cow is mobilizing */
-    GSR = -0.43 + 1.82 * GSR_zero + 0.035 * QI_c - 0.00053 * PLPOT * QI_c;
-  else
-    GSR = GSR_zero;
+  } else { /* cows */
+
+    /* should be larger 0 (dry cows have a pot. milk yield as well) */
+    if (PLPOT <= 0)
+      PLPOT = 1;
+
+    GSR_zero = d * pow(PLPOT, -0.62) * exp(1.32 * DEF);
+
+    if (BWC < 0) /* energy balance of the cow is negative, irrespective of the reason */
+      GSR = -0.43 + 1.82 * GSR_zero + 0.035 * QI_c - 0.00053 * PLPOT * QI_c;
+    else
+      GSR = GSR_zero;
+  
+  }
 
   return GSR;
 
@@ -1283,10 +1325,13 @@ return {
   Dong, L.F., T. Yan, C.P. Ferris, and D.A. McDowell. 2014. Comparison of energy utilisation and energetic efficiency
   of dairy cows under different input systems. In: The proceedings of the 65th Conference of European Association of
   Animal Production. p. 395, Copenhagen, Denmark.
-
-  MTT 2006. Rehutaulukot ja ruokintasuositukset [Feed tables and feeding recommendations]. Agrifood Research Finland,
-  Jokioninen, Finland. Updated version available online at:
-  https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english/nutrient_requirements/Ruminants
+  
+  MTT 2006. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations). Agrifood Research Finland,
+  Jokioninen, Finland, 84 p.
+  
+  MTT 2014. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations) [online]. Agrifood
+  Research Finland, Jokioinen. Accessed last on November 20, 2014, available at:
+  https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
 
   Sjaunja, L.-O., L. Baevre, L. Junkarinen, J. Pedersen, and J. Setala. 1990. A Nordic proposal for an energy corrected
   milk (ECM) formula. Pages 156–157 in Proc. 27th Biennial Session of the International Committee for Animal Recording.
@@ -1357,10 +1402,12 @@ function is_null_or_undefined (x) {
   Regarding the extra requirement for hilly pastures, we chose to use the original version by AFRC (1993) that NRC is
   quoting on page 21, because it can cover differing slopes.
 
-  Because all equations are based on US-American Mcal NEL, both the basic maintenance requirements and all additions
-  will be calculated, and then the sum of all additions will be expressed in % of the basic requirements. So the
-  output of this calculation is the addition in %, which is then used in the national requirements to upscale the
-  energy requirements for maintenance accordingly.
+  NRC (2001) expresses the basic maintenance requirements of dairy heifers in Mcal NEM, but the extra requirements are
+  calculated using the same equations as for the dairy cows, which are expressed in Mcal NEL. Because the NRC (2001)
+  assumes that NEL and NEM are equivalent (in this case), both the basic maintenance requirements and all additions will
+  be calculated as described by the NRC, and then the sum of all additions will be expressed in % of the basic
+  requirement. So the output of this calculation is the addition in %, which is then used in the national requirements
+  to upscale the energy requirements for maintenance accordingly.
 
   activity  [ME ME-1] additional maintenance requirements as fraction of total requirements
   BW        [kg]      body weight
@@ -1371,7 +1418,8 @@ function is_null_or_undefined (x) {
 
 var activity = function (BW, f, d, d_v) {
 
-  var maintenance = 0.08 * pow(BW, 0.75)
+  var SBW = BW * 0.96 /* shrunk body weight (equation taken from NRC (2001) p. 234) */
+    , maintenance = 0.08 * pow(SBW, 0.75)
     , walking = 0.00045 * BW * d
     , grazing = 0.002 * BW * f
     , hilly = 0.00003 * BW * d_v * 4
@@ -1384,79 +1432,115 @@ var activity = function (BW, f, d, d_v) {
 /*
   GfE (2001)
   
-  Nutrient requirements of dairy cows according to GfE.
+  Nutrient requirements of dairy cows and young stock according to GfE.
+
+  cows
 
   Energy is expressed in MJ NEL (net energy lactation) and protein is expressed in uCP (utilizable crude protein at the
   duodenum, the German abbreviation is nXP).
 
   Because DMI is predicted according to GrazeIn, the unit of IC (intake capacity) is UEL. For calculating the German
   protein requirements, IC is used as if it was expressed in kg, which means that an average fill value of 1 is assumed.
+
+  young stock
+
+  Energy is expressed in MJ ME (metabolizable energy) and protein is expressed in g uCP (utilizable crude protein at the
+  duodenum, the German abbreviation is nXP).
+
+  Because DMI is predicted according to GrazeIn, the unit of IC (intake capacity) is UEB. For calculating the German
+  protein requirements, IC is used as if it was expressed in kg, which means that an average fill value of 1 is assumed.
 */
 
 var de = (function () {
 
   /*
-    maintenance [{NEL, uCP}]        Adjusted for share of forages in diet (by AFBI)
+    maintenance [{NEL or ME, uCP}]  Adjusted for share of forages in diet (by AFBI) if p > 0
     BW          [kg]                Body weight
     DMI         [kg]                Dry matter intake (if unknow assume IC ~ DMI @ FV = 1)
     f           [kg (DM) kg-1 (DM)] Share of forage in diet
+    p           [#]                 parity
   */
 
-  var maintenance = function (BW, DMI, f) {
+  var maintenance = function (BW, DMI, f, p) {
 
-    /*
-      Dong et. al. (2014)
+    if (p > 0) { /* cows */
+      /*
+        Dong et. al. (2014)
 
-      The equation for the energy requirements for maintenance was formulated using a regression method (feeding at
-      different energy levels and extrapolating to an energy balance of zero). (eq. 1.4.1)
+        The equation for the energy requirements for maintenance was formulated using a regression method (feeding at
+        different energy levels and extrapolating to an energy balance of zero). (eq. 1.4.1)
 
-      Energy requirements for maintenance are adjusted to forage proportion based on results from SOLID Task 3.3,
-      conducted by AFBI:
+        Energy requirements for maintenance are adjusted to forage proportion based on results from SOLID Task 3.3,
+        conducted by AFBI:
 
-      AFBI derived estimates of energy utilization by dairy cows on high forage diets. Using a database of calorimetric
-      chamber experiments, the effects of total energy intake and diet quality forage proportion and contents of energy,
-      protein and fibre on the energy requirements for maintenance and on the efficiency of using energy for maintenance
-      and lactation were evaluated.
+        AFBI derived estimates of energy utilization by dairy cows on high forage diets. Using a database of calorimetric
+        chamber experiments, the effects of total energy intake and diet quality forage proportion and contents of energy,
+        protein and fibre on the energy requirements for maintenance and on the efficiency of using energy for maintenance
+        and lactation were evaluated.
 
-      The energy requirement for maintenance was found to be influenced by forage proportion:
+        The energy requirement for maintenance was found to be influenced by forage proportion:
 
-      forage proportion < 30% -->   ME_m, MJ british = 0.65 * LW^0.75 ; k_l = 0.62
-      forage proportion 30%-99% --> ME_m, MJ british = 0.68 * LW^0.75 ; k_l = 0.62
-      forage proportion = 100% -->  ME_m, MJ british = 0.74 * LW^0.75 ; k_l = 0.62
+        forage proportion < 30% -->   ME_m, MJ british = 0.65 * LW^0.75 ; k_l = 0.62
+        forage proportion 30%-99% --> ME_m, MJ british = 0.68 * LW^0.75 ; k_l = 0.62
+        forage proportion = 100% -->  ME_m, MJ british = 0.74 * LW^0.75 ; k_l = 0.62
 
-      No influence of forage proportion on the efficiency of using energy for milk production (k_l) was found.
-      
-      Within an energy evaluation system, energy evaluation and energy requirements form a unit, and energy requirements
-      are a unit of maintenance requirements and k_l:
-      energy system = energy evaluation + maintenance requirement + k_l
+        No influence of forage proportion on the efficiency of using energy for milk production (k_l) was found.
+        
+        Within an energy evaluation system, energy evaluation and energy requirements form a unit, and energy requirements
+        are a unit of maintenance requirements and k_l:
+        energy system = energy evaluation + maintenance requirement + k_l
 
-      Therefore the AFBI-results cannot be ABSOLUTELY incorporated in a system of energy evaluation and requirement
-      different from the British system, and the incorporation will be in RELATIVE terms.
+        Therefore the AFBI-results cannot be ABSOLUTELY incorporated in a system of energy evaluation and requirement
+        different from the British system, and the incorporation will be in RELATIVE terms.
 
-      The equation for protein requirements for maintenance (equations 2.1.1, 2.1.2, 2.1.3, 2.1.5) summarizes the
-      endogenous N losses via urine (5.9206 * log10 BW - 6.76), feces (2.19 * DMI) and skin (0.018 * BW^0.75),
-      transforms that into protein (*6.25) and then multiplies with 2.1 to get the uCP requirement. (Assuming an
-      efficiency of using absorbed amino acid N of 75%, an absorbability of amino acid N of 85% and a proportion of
-      amino acid N of non-ammonia-N in chyme of 73%.)
-    */
+        The equation for protein requirements for maintenance (equations 2.1.1, 2.1.2, 2.1.3, 2.1.5) summarizes the
+        endogenous N losses via urine (5.9206 * log10 BW - 6.76), feces (2.19 * DMI) and skin (0.018 * BW^0.75),
+        transforms that into protein (*6.25) and then multiplies with 2.1 to get the uCP requirement. (Assuming an
+        efficiency of using absorbed amino acid N of 75%, an absorbability of amino acid N of 85% and a proportion of
+        amino acid N of non-ammonia-N in chyme of 73%.)
+      */
 
-    var NEL = 0.293 * pow(BW, 0.75)
-      , uCP = ((5.9206 * log10(BW) - 6.76) + (2.19 * DMI) + (0.018 * pow(BW, 0.75))) * 6.25 * 2.1
-      ;
- 
-    if (f) {
-      if (f < 0.3)
-        NEL = 0.280 * pow(BW, 0.75);
-      else if (f >= 0.3 && f <= 0.99)
-        NEL = 0.293 * pow(BW, 0.75);
-      else
-        NEL = 0.319 * pow(BW, 0.75);
+      var NEL = 0.293 * pow(BW, 0.75)
+        , uCP = ((5.9206 * log10(BW) - 6.76) + (2.19 * DMI) + (0.018 * pow(BW, 0.75))) * 6.25 * 2.1
+        ;
+   
+      if (f) {
+        if (f < 0.3)
+          NEL = 0.280 * pow(BW, 0.75);
+        else if (f >= 0.3 && f <= 0.99)
+          NEL = 0.293 * pow(BW, 0.75);
+        else
+          NEL = 0.319 * pow(BW, 0.75);
+      }
+
+      return {
+          E: NEL
+        , P: uCP
+      };
+
+    } else {
+
+      /*
+        Equation for energy requirement for maintenance taken from GfE (2001) p. 27, chapter 1.5.1
+
+        The protein requirement for maintenance is calculated with the same equations as for the dairy cows. The only
+        difference is that the efficiency of using absorbed amino acid N is 70% for heifers instead of 75% for dairy cows.
+        The equation (equations 2.1.1, 2.1.2, 2.1.3, 2.1.5) summarizes the endogenous N losses via urine (5.9206 *
+        log10 BW - 6.76), feces (2.19 * DMI) and skin (0.018 * BW^0.75), transforms that into protein (*6.25) and then
+        multiplies with 2.3 to get the uCP requirement. (Assuming an efficiency of using absorbed amino acid N of 70%, an
+        absorbability of amino acid N of 85% and a proportion of amino acid N of non-ammonia-N in chyme of 73%.)
+      */
+
+      var ME = 0.530 * pow(BW, 0.75)
+        , uCP = ((5.9206 * log10(BW) - 6.76) + (2.19 * DMI) + (0.018 * pow(BW, 0.75))) * 6.25 * 2.3;
+        ;
+
+      return {
+          E: ME
+        , P: uCP
+      };
+
     }
-
-    return {
-        E: NEL
-      , P: uCP
-    };
 
   };
 
@@ -1474,23 +1558,37 @@ var de = (function () {
     milk        [kg]
     fat         [%]
     protein     [%]
+    p           [#]           parity
   */
 
-  var production = function (milk, fat, protein) {
+  var production = function (milk, fat, protein, p) {
 
-    var NEL = milk * (0.38 * fat + 0.21 * protein + 0.95 + 0.1)
-      , uCP = milk * protein * 10 * 2.1
-      ;
+    if (p > 0) {
+    
+      var NEL = milk * (0.38 * fat + 0.21 * protein + 0.95 + 0.1)
+        , uCP = milk * protein * 10 * 2.1
+        ;
 
-    return {
-        E: NEL
-      , P: uCP
-    };
+      return {
+          E: NEL
+        , P: uCP
+      };
+
+    } else {
+      
+      return {
+          E: 0
+        , P: 0
+      };      
+    
+    }
 
   };
 
   /*
-    GfE (2001) eqs 1.4.5, 2.2.2
+    GfE (2001) eqs 1.4.5, 2.2.2, Jeroch (2008) p. 410
+
+    cows
 
     Equation for energy requirement for gestation taken from GfE (2001) equation 1.4.5. Equation for protein requirement
     for gestation taken from GfE (2001) equation 2.2.2.
@@ -1503,49 +1601,84 @@ var de = (function () {
     requirement of the ruminal microbes: uCP supply for dry cows should be a minimum of 1080 [g day-1] during 42-21 days
     before calving and 1170 uCP [g day-1] during the last 21 days before calving, respectively.
 
-    gestation [{NEL, uCP}]
-    WG        [week]        Week of gestation (1-40)
-    DIM       [day]         Days in milk (assume cow dry if zero)
+    young stock 
+
+    GfE (2001) doesn´t mention additional energy and protein requirements for gestation. For energy, the recommendation
+    from Jeroch (2008), who recommends adding extra energy during the last 6 weeks of gestation, was implemented.
+
+    GfE (2001) doesn´t give information on protein requirement for gestation, rather the requirement for gestation is
+    included in the requirement for body weight gain.
+
+    gestation [{NEL or ME, uCP}]
+    WG        [week]              Week of gestation (1-40)
+    DIM       [day]               Days in milk (assume cow dry if zero)
+    p         [#]                 parity
   */
 
-  var gestation = function (WG, DIM) {
+  var gestation = function (WG, DIM, p) {
 
-    var NEL = 0
-      , uCP = 0
-      ;
+    if (p > 0) {
 
-    if (WG > 0) {
+      var NEL = 0
+        , uCP = 0
+        ;
 
-      if (WEEKS_GESTATION_PERIOD - WG < 3)
-        NEL = ((0.044 * exp(0.0165 * WG * 7)) + 1.5) * 5.71;
-      else if (WEEKS_GESTATION_PERIOD - WG < 8)
-        NEL = ((0.044 * exp(0.0165 * WG * 7)) + 0.8) * 5.71;
-      else
-        NEL = ((0.044 * exp(0.0165 * WG * 7)) + 0.0) * 5.71;
-      
-      uCP = (1.9385 * exp(0.0108 * WG * 7)) * 6.25 * 2.3;
+      if (WG > 0) {
 
-      /* minimum recommended protein requirements for dry cows */
-      if (DIM === 0) { 
+        if (WEEKS_GESTATION_PERIOD - WG < 3)
+          NEL = ((0.044 * exp(0.0165 * WG * 7)) + 1.5) * 5.71;
+        else if (WEEKS_GESTATION_PERIOD - WG < 8)
+          NEL = ((0.044 * exp(0.0165 * WG * 7)) + 0.8) * 5.71;
+        else
+          NEL = ((0.044 * exp(0.0165 * WG * 7)) + 0.0) * 5.71;
+        
+        uCP = (1.9385 * exp(0.0108 * WG * 7)) * 6.25 * 2.3;
 
-        if (uCP < 1170 && WG > WEEKS_GESTATION_PERIOD - 3)
-          uCP = 1170;
-        else if (uCP < 1080 && WG > WEEKS_GESTATION_PERIOD - 6)
-          uCP = 1080;
+        /* minimum recommended protein requirements for dry cows */
+        if (DIM === 0) { 
+
+          if (uCP < 1170 && WG > WEEKS_GESTATION_PERIOD - 3)
+            uCP = 1170;
+          else if (uCP < 1080 && WG > WEEKS_GESTATION_PERIOD - 6)
+            uCP = 1080;
+
+        }
 
       }
+      
+      return {
+          E: NEL
+        , P: uCP
+      };
+
+    } else {
+
+      var ME = 0
+        , uCP = 0
+        ;
+
+      if (WG > 0) {
+
+        if (WEEKS_GESTATION_PERIOD - WG < 3)
+          ME = 30;
+        else if (WEEKS_GESTATION_PERIOD - WG < 6)
+          ME = 20;
+
+      }
+      
+      return {
+          E: ME
+        , P: uCP
+      };
 
     }
-    
-    return {
-        E: NEL
-      , P: uCP
-    };
 
   };
 
   /*
     GfE (2001)
+
+    cows
 
     Equations for energy mobilization and weight gain taken from GfE (2001) page 22 and 23, respectively. Equation for
     protein mobilization taken from GfE (2001) chapter 2.1.1.3.
@@ -1558,27 +1691,69 @@ var de = (function () {
     than 500 g. Multiplication with 2.3 results from assuming an efficiency of using absorbed amino acid N of 70%, an
     absorbability of amino acid N of 85% and a proportion of amino acid N of non-ammonia-N in chyme of 73%.
 
-    weight  [{NEL, uCP}]
-    BWC     [kg]          body weight change
+    young stock
+
+    Equation for energy requirements for body weight gain taken from GfE (2001) p. 28 equ. 1.5.1
+
+    Information on protein requirement for body weight gain taken from GfE (2001) p. 48 and 50
+
+    Both the energy and protein requirements for body weight gain are based on the net energy and protein retention of
+    the heifer. GfE (2001) doesn´t supply equations for the calculation of energy and protein retention, but gives a
+    Table (1.5.1) with discrete values depending on body weigth and body weight gain. Based on these discrete values
+    from Table 1.5.1, linear regressions for the calculation of energy and protein retention were produced which are
+    valid for heifers with body weights between 150 and 550 kg and body weight gains between 400 and 800 g per day, and
+    which had coefficients of determination of 0.94 (energy) and 0.92 (protein).    
+
+    TODO:
+    - Die GfE gibt zwei Untergrenzen für die Proteinversorgung der Aufzuchtrinder an: die Proteinzufuhr soll 12 g XP
+    MJ-1 ME nicht unterschreiten, und die Ration soll mindestens 9 % XP enthalten. Blöderweise geben sie diese
+    Empfehlungen in Rohprotein an, nicht in uCP. Können wir (zum. eines davon) das trotzdem irgendwie einbauen?
+
+    weight  [{NEL or ME, uCP}]
+    BWC     [kg]                body weight change
+    BW      [kg]                body weight
+    p       [#]                 parity
    */
 
-  var weight = function (BWC) {
+  var weight = function (BWC, BW, p) {
 
-    var NEL = 0
-      , uCP = 0
-      ;
+    if (p > 0) {
 
-    if (BWC < 0) {
-      NEL = BWC * 20.5;
+      var NEL = 0
+        , uCP = 0
+        ;
+
+      if (BWC < 0) {
+        NEL = BWC * 20.5;
+      } else {
+        NEL = BWC * 25.5;
+        uCP = BWC * 317.4;
+      }
+
+      return {
+          E: NEL
+        , P: uCP
+      };
+
     } else {
-      NEL = BWC * 25.5;
-      uCP = BWC * 317.4;
-    }
 
-    return {
-        E: NEL
-      , P: uCP
-    };
+      var ME = 0
+        , uCP = 0
+          /* RE [MJ] energy retention, expressed in MJ per day */
+        , RE = -10.729 + BW * 0.02059 + BWC * 17.8868
+          /* RN [g] protein retention, expressed in g per day */
+        , RN = 61.1959 - BW * 0.08728 + BWC * 89.8389
+        ;
+
+      ME = RE * 2.5;
+      uCP = RN * 2.3;
+
+      return {
+          E: ME
+        , P: uCP
+      };
+
+    }
 
   };
 
@@ -1593,52 +1768,113 @@ var de = (function () {
 }());
 
 /*
-  MTT (2006)
+  MTT (2014)
+
+  cows
 
   Nutrient requirements of dairy cows according to the Finnish system of feed evaluation and requirements. Latest print
-  version using "feed values" instead of ME, which is used now.
+  version using "feed values" instead of ME, which is used now. The last description of the Finnish system of feed evaluation
+  published in print is MTT (2006). Since then all updates have been published online, hereafter quoted as MTT (2014). 
 
   Energy is expressed in MJ ME (metabolisable energy) and protein is expressed in g MP (metabolisable protein).
+
+  young stock
+
+  Nutrient requirements of dairy heifers according to the Finnish system of feed evaluation and requirements.
+  The latest print version still used "feed values" instead of ME, which is used now.
+
+  Energy is expressed in MJ ME (metabolisable energy) and protein is expressed in g MP (metabolisable protein).
+
+  MTT doesn´t mention an energy addition due to grazing for the heifers, but the NRC approach as described above will be
+  used nonetheless.
 */
 
 var fi = (function () {
 
   /*
-    MTT (2006)
+    MTT (2014)
+
+    cows
 
     All equations for energy requirements taken from website, chapter "Energy requirements of dairy cows".
     All equations for protein requirements taken from website, chapter "Protein requirements of dairy cows".
+
+    young stock
+
+    Information taken from website, chapter "Energy requirements of growing heifers".
+
+    The MTT website provides a Table which gives the sum of the energy requirements of heifers for maintenance and
+    growth. The original equations (separated into requirements for maintenance and growth) which were used to calculate
+    the energy requirements were provided by Rinne (2014), who states that the equations used for young cattle ME
+    requirements in Finland are based on AFRC (1990) and were modified by Mikko Tuori (University of Helsinki, 1955) and
+    further by Arto Huuskonen (MTT Agrifood Research Finland, 2010).
+
+    For the protein requirements for maintenance and growth, MTT only provides a Table for heifers smaller than 200 kg
+    (see website, chapter "Protein requirements of growing cattle"). From the values in this Table, a linear regression
+    for calculating protein requirements depending on body weight and body weight change was produced, which is valid
+    for heifers with body weights between 100 and 200 kg and body weight gains between 0.5 and 1.6 kg per day, and which
+    had a coefficient of determination of 0.99. 
+    For all heifers heavier than 200 kg, protein intake is assumed to be adequate if the protein balance in the rumen
+    (PBV) of the total diet is not lower than -10 g per kg feed. In SOLID-DSS, the PBV values will not be used. Instead,
+    Rinne (2014) recommended to use a minimum recommendation of 90 g CP in the total diet.
+    k_m (efficiency of using ME for maintenance) is assumed as 0.712.
+
+    TODO:
+  - Wie bauen wir die Mindestempfehlung von 90 g XP in der Gesamtration für die heifers > 200 kg ein?
 
     maintenance [{ME, MP}]          adjusted for share of forages in diet (acc. to AFBI, see explanation above)
     BW          [kg]                body weight
     DMI         [kg]                Dry matter intake (if unknow assume IC ~ DMI @ FV = 1)
     f           [kg (DM) kg-1 (DM)] share of forage in diet
+    BWC         [kg]                body weight change
+    type        [enum]              type of cow, dairy or dual (purpose)
+    p           [#]                 parity 
   */
 
-  var maintenance = function (BW, DMI, f) {
+  var maintenance = function (BW, DMI, f, BWC, type, p) {
 
-    var ME = 0.515 * pow(BW, 0.75)
-      , MP = 1.8 * pow(BW, 0.75) + 14 * DMI
-      ;
+    if (p > 0) {
 
-    if (f) {
-      if (f < 0.3)
-        ME = 0.492 * pow(BW, 0.75);
-      else if (f >= 0.3 && f <= 0.99)
-        ME = 0.515 * pow(BW, 0.75);
-      else
-        ME = 0.560 * pow(BW, 0.75);
+      var ME = 0.515 * pow(BW, 0.75)
+        , MP = 1.8 * pow(BW, 0.75) + 14 * DMI
+        ;
+
+      if (f) {
+        if (f < 0.3)
+          ME = 0.492 * pow(BW, 0.75);
+        else if (f >= 0.3 && f <= 0.99)
+          ME = 0.515 * pow(BW, 0.75);
+        else
+          ME = 0.560 * pow(BW, 0.75);
+      }
+
+      return {
+          E: ME
+        , P: MP
+      };
+
+    } else {
+
+      var ME = (0.53 * pow(BW / 1.08, 0.67) + 0.0071 * BW ) / 0.712
+        , MP = -36.3373 + BW * 0.8879 + BWC * 247.1739
+        ;
+
+      ME = (type === 'dual') ? ME * 0.9 : ME;
+
+      /*if (BW > 200)
+        XP should be at least 90 g*/
+
+      return {
+          E: ME
+        , P: MP
+      };
+
     }
-
-    return {
-        E: ME
-      , P: MP
-    };
 
   };
 
   /*
-    MTT (2006)
+    MTT (2014)
 
     ECM is calculated according to Sjaunja et al. (1990)
 
@@ -1646,28 +1882,43 @@ var fi = (function () {
     milk        [kg]
     fat         [%]
     protein     [%]
+    p           [#]
 
     TODO: there is a correction equation for energy intake!
     jv: Hm, I would argue that we do not need it if use INRA intake. Because feed interaction is covered there, isn't it?
       On the other hand that might mean that we also have to remove ME from gb maint. requirements????
   */
 
-  var production = function (milk, fat, protein) {
+  var production = function (milk, fat, protein, p) {
   
-    var ECM = milk * (383 * fat + 242 * protein + 783.2) / 3140
-      , ME = 5.15 * ECM
-      , MP = (1.47 - 0.0017 * ECM) * (milk * protein * 10 /* to g kg-1 */)
-      ;
+    if (p > 0) {
 
-    return {
-        E: ME
-      , P: MP
-    };
+      var ECM = milk * (383 * fat + 242 * protein + 783.2) / 3140
+        , ME = 5.15 * ECM
+        , MP = (1.47 - 0.0017 * ECM) * (milk * protein * 10 /* to g kg-1 */)
+        ;
+
+      return {
+          E: ME
+        , P: MP
+      };
+
+    } else {
+
+      return {
+          E: 0
+        , P: 0
+      };
+
+    }
 
   };
 
   /*
-    MTT (2006)
+    MTT (2014)
+
+    According to Rinne (2014), the energy and protein requirements for young stock gestation are calculated similar to 
+    the older cows.
 
     gestation [{ME, MP}] 
     WG        [1-40]      week of gestation
@@ -1700,30 +1951,58 @@ var fi = (function () {
   };
 
   /*
-    MTT (2006)
+    MTT (2014)
+
+    young stock 
+
+    The equation for calculating the energy requirements for weight gain is not provided on the website, but was
+    supplied by Rinne (2014), details see above. k_f, the efficiency of using ME for body weight gain, is assumed as
+    0.474.
+
+    The protein requirement for body weight gain is included in the requirements for maintenance, details see above.
 
     weight [{ME, MP}]
     BWC    [kg]       body weight change
+    BW     [kg]       body weight
+    type   [enum]     type of cow, dairy or dual (purpose)
+    p      [#]        parity 
   */
 
-  var weight = function (BWC) {
+  var weight = function (BWC, BW, type, p) {
 
-    var ME = 0
-      , MP = 0
-      ;
+    if (p > 0) {
 
-    if (BWC < 0) {
-      ME = BWC * 28.0;
-      MP = BWC * 138.0;
+      var ME = 0
+        , MP = 0
+        ;
+
+      if (BWC < 0) {
+        ME = BWC * 28.0;
+        MP = BWC * 138.0;
+      } else {
+        ME = BWC * 34.0;
+        MP = BWC * 233.0;
+      }
+
+      return {
+          E: ME
+        , P: MP
+      };
+
     } else {
-      ME = BWC * 34.0;
-      MP = BWC * 233.0;
-    }
 
-    return {
-        E: ME
-      , P: MP
-    };
+      var ME = (((4.1 + 0.0332 * BW - 0.000009 * BW * BW) / (1 - 0.1475 * BWC)) * 1.15 * BWC) / 0.474
+        , MP = 0
+        ;
+
+      ME = (type === 'dual') ? ME * 0.9 : ME;
+
+      return {
+          E: ME
+        , P: MP
+      };
+
+    }
 
   };
 
@@ -1740,21 +2019,48 @@ var fi = (function () {
 /*
   FiM (2004), AFRC (1993)
 
+  cows
+
   Nutrient requirements of dairy cows according to the British system of feed evaluation and requirements.
 
   Energy is expressed in MJ ME (metabolisable energy) and protein is expressed in g MP (metabolisable protein). Feed
   into Milk (FiM) recommends adding a 5 % safety margin to the total energy and protein requirements. This is not 
   included in the following equations.
+
+  young stock
+
+  While the energy and protein requirements of the dairy cows are calculated as described in Feed into Milk (FiM 2004),
+  FiM doesn´t mention heifers, therefore all information about the energy and protein requirements of dairy heifers is
+  taken from AFRC (1993).
+
+  Energy is expressed in MJ ME (metabolisable energy) and protein is expressed in g MP (metabolisable protein).
+
+  AFRC doesn´t mention an activity addition because of grazing for the dairy heifers, but the NRC approach as described
+  above will be used nonetheless.
 */
 
 var gb = (function () {
 
   /*
+    cows
+
     Instead of the original FiM equation to calculate energy requirements for maintenance, the equations produced by
     SOLID Task 3.3 (Dong et al. 2014, see above) are used. In this case, incorporating the new AFBI equations in a TOTAL
     way is appropriate, because they were developed within the British system of feed evaluation and requirements.
 
     Assuming an average fill value of 1, the IC (FV) value produced by GrazeIn is used instead of DMI (kg)
+
+    young stock
+
+    AFRC (1993) doesn´t differentiate between the energy requirements for maintenance, growth and gestation, instead
+    a Table giving the total energy and protein requirements for growing heifers depending on body weight, daily weight
+    gain and (for energy requirement only) energy density of the diet is supplied (Table 5.5)
+    Based on the values from Table 5.5, linear regressions for calculating energy and protein requirements for
+    maintenance and body weight gain depending on body weight, body weight gain and energy density of the diet were
+    produced which are valid for heifers with body  weight between 100 and 600 kg and body weight gains between 0.5 and
+    1.0 kg per day, and which had coefficients of determination of 0.98 (energy) and 0.99 (protein).
+
+    Assuming an average fill value of 1, the IC (FV) value produced by GrazeIn is used instead of DMI (kg)    
 
     maintenance [{ME, MP}]          Adjusted for share of forages in diet (by AFBI)
     BW          [kg]                Body weight
@@ -1763,68 +2069,85 @@ var gb = (function () {
     f           [kg (DM) kg (DM)]   Share of forage in diet (optional)
     fat         [kg d-1]            Amount of fat supplied by the total diet
     ME_ferm     [MJ kg-1 (DM)]      Energy contribution of fermentation acids in the feeds, sum of the total diet
+    BWC         [kg]                body weight change
+    p           [#]                 parity
   */
 
-  var maintenance = function (BW, DMI, ME_total, f, fat, ME_ferm) {
+  var maintenance = function (BW, DMI, ME_total, f, fat, ME_ferm, BWC, p) {
 
-    /* ME_fat [MJ kg-1 (DM)] energy contribution of oils and fat in the feeds, sum of the total diet.
-      If fat is not available we assume 3.5% fat in ration i.e. the average in relevant fresh forages */
-    if (is_null_or_undefined(fat))
-      var ME_fat = 0.035 * 35;
-    else
-      var ME_fat = 35 * fat;
+    if (p > 0) {
 
-    /* ME_ferm is the energy contribution of the fermentation acids, so this part only applies to silage. When the 
-      amounts of fermentation acids are not know, an average value of 0.10 * ME is used.
-      If ME_ferm is not available we assume 10% fermentation acids in silage, and 6.5 kg silage in the diet, with an
-      energy content of 11.2 MJ ME */
-    if (is_null_or_undefined(ME_ferm))
-      ME_ferm = 6.5 /* kg (DM) silage */ * 11.2 /* ME kg-1 */ * 0.1 /* fraction of fermentation acids kg-1 */;
-
-    var ME = 0.68 * pow(BW, 0.75)
-
-      /*
-        FiM (2004) p. 23f, NRC (2001) p. 18ff
-
-        The equation for protein requirements for maintenance summarizes the endogenous N losses via urine (4.1 *W^0.5),
-        hair and scurf (0.3 * W^0.6) and feces (metabolic fecal protein, MFP = 30 * DMI). Also an adjustment is included
-        for the fraction of intestinally indigestible rumen-synthesized microbial protein that is degraded from the hind
-        gut and absorbed as ammonia (0.5 * ((DMTP/0.8) - DMTP). FiM adopted these four equations from NRC (2001).
-
-        Endogenous protein supply at the intestine is estimated to be about 15% of NAN flow, and the efficiency of
-        synthesis of endogenous protein from MP is assumed to be 0.67. The net effect of endogenous protein is modeled
-        with the term 2.34*DMI.
-
-        DMTP (digestible microbial true protein, g d-1) is calculated acc. to equation 3.19 in FiM (2004):
-
-        DMTP = 0.6375 * MCP
-
-        MCP = microbial crude protein, g d-1
-
-        MCP is calculated acc. to AFRC (1993) page 16:
-
-        MCP, g d-1 = 11 * FME
-
-        FME = fermentable metabolisable energy, MJ kg-1 DM = ME - ME_fat - ME_ferm
-      */
-
-      , DMTP = 0.6375 * 11 * (ME_total - ME_fat - ME_ferm)
-      , MP = 4.1 * pow(BW, 0.5) + 0.3 * pow(BW, 0.6) + 30.0 * DMI - 0.5 * ((DMTP / 0.8) - DMTP) + 2.34 * DMI
-      ;
-
-    if (f) {
-      if (f < 0.3)
-        ME = 0.65 * pow(BW, 0.75);
-      else if (f >= 0.3 && f <= 0.99)
-        ME = 0.68 * pow(BW, 0.75);
+      /* ME_fat [MJ kg-1 (DM)] energy contribution of oils and fat in the feeds, sum of the total diet.
+        If fat is not available we assume 3.5% fat in ration i.e. the average in relevant fresh forages */
+      if (is_null_or_undefined(fat))
+        var ME_fat = 0.035 * 35;
       else
-        ME = 0.74 * pow(BW, 0.75);
-    }
+        var ME_fat = 35 * fat;
 
-    return {
-        E: ME
-      , P: MP
-    };
+      /* ME_ferm is the energy contribution of the fermentation acids, so this part only applies to silage. When the 
+        amounts of fermentation acids are not know, an average value of 0.10 * ME is used.
+        If ME_ferm is not available we assume 10% fermentation acids in silage, and 6.5 kg silage in the diet, with an
+        energy content of 11.2 MJ ME */
+      if (is_null_or_undefined(ME_ferm))
+        ME_ferm = 6.5 /* kg (DM) silage */ * 11.2 /* ME kg-1 */ * 0.1 /* fraction of fermentation acids kg-1 */;
+
+      var ME = 0.68 * pow(BW, 0.75)
+
+        /*
+          FiM (2004) p. 23f, NRC (2001) p. 18ff
+
+          The equation for protein requirements for maintenance summarizes the endogenous N losses via urine (4.1 *W^0.5),
+          hair and scurf (0.3 * W^0.6) and feces (metabolic fecal protein, MFP = 30 * DMI). Also an adjustment is included
+          for the fraction of intestinally indigestible rumen-synthesized microbial protein that is degraded from the hind
+          gut and absorbed as ammonia (0.5 * ((DMTP/0.8) - DMTP). FiM adopted these four equations from NRC (2001).
+
+          Endogenous protein supply at the intestine is estimated to be about 15% of NAN flow, and the efficiency of
+          synthesis of endogenous protein from MP is assumed to be 0.67. The net effect of endogenous protein is modeled
+          with the term 2.34*DMI.
+
+          DMTP (digestible microbial true protein, g d-1) is calculated acc. to equation 3.19 in FiM (2004):
+
+          DMTP = 0.6375 * MCP
+
+          MCP = microbial crude protein, g d-1
+
+          MCP is calculated acc. to AFRC (1993) page 16:
+
+          MCP, g d-1 = 11 * FME
+
+          FME = fermentable metabolisable energy, MJ kg-1 DM = ME - ME_fat - ME_ferm
+        */
+
+        , DMTP = 0.6375 * 11 * (ME_total - ME_fat - ME_ferm)
+        , MP = 4.1 * pow(BW, 0.5) + 0.3 * pow(BW, 0.6) + 30.0 * DMI - 0.5 * ((DMTP / 0.8) - DMTP) + 2.34 * DMI
+        ;
+
+      if (f) {
+        if (f < 0.3)
+          ME = 0.65 * pow(BW, 0.75);
+        else if (f >= 0.3 && f <= 0.99)
+          ME = 0.68 * pow(BW, 0.75);
+        else
+          ME = 0.74 * pow(BW, 0.75);
+      }
+
+      return {
+          E: ME
+        , P: MP
+      };
+
+    } else {
+          /* TODO: exclude feed level adjustment in SOLID-DSS */
+      var ME = 22.2136 - ME_total / DMI * 3.3290 + BW * 0.1357 + BWC * 48.5855
+        , MP = 80.7936 + BW * 0.3571 + BWC * 223.1852
+        ;
+
+      return {
+          E: ME
+        , P: MP
+      };
+
+    }
 
   };
 
@@ -1843,27 +2166,39 @@ var gb = (function () {
     milk        [kg]
     fat         [%]
     protein     [%]
+    p           [#]         parity
   */
 
-  var production = function (milk, fat, protein) {
+  var production = function (milk, fat, protein, p) {
 
-    var energy_value_of_milk = 0.0376 * fat * 10.0 + 0.0209 * protein * 10.0 + 0.948 /* fat and protein in g per kg */
-      , ME = (milk * energy_value_of_milk) / 0.62
+    if (p > 0) {
 
-      /*
-        ARFC (1993) eqs. 87, 88
+      var energy_value_of_milk = 0.0376 * fat * 10.0 + 0.0209 * protein * 10.0 + 0.948 /* fat and protein in g per kg */
+        , ME = (milk * energy_value_of_milk) / 0.62
 
-        The crude protein of milk contains 0.95 true protein. The efficiency of utilization of absorbed amino acids for 
-        milk protein synthesis is assumed to be 0.68.
-      */
+        /*
+          ARFC (1993) eqs. 87, 88
 
-      , MP = (milk * protein * 10.0 * 0.95 ) / 0.68 /* protein in g per kg */
-      ;
+          The crude protein of milk contains 0.95 true protein. The efficiency of utilization of absorbed amino acids for 
+          milk protein synthesis is assumed to be 0.68.
+        */
 
-    return {
-        E: ME
-      , P: MP
-    };
+        , MP = (milk * protein * 10.0 * 0.95 ) / 0.68 /* protein in g per kg */
+        ;
+
+      return {
+          E: ME
+        , P: MP
+      };
+
+    } else {
+
+      return {
+          E: 0
+        , P: 0
+      };
+
+    }
 
   };
 
@@ -1876,31 +2211,43 @@ var gb = (function () {
 
     gestation [{ME, MP}]
     WG        [week]      Week of gestation (1-40)
+    p         [#]         parity
   */
 
-  var gestation = function (WG) {
+  var gestation = function (WG, p) {
 
-    var ME = 0
-      , MP = 0
-        /* EGU (FiM 2004) = E_t (AFRC 1993) = energy retention in the gravid foetus */
-      , EGU = exp(((151.665 - (151.64 * exp(-0.0000576 * WG * 7)))) * 2.30258)
-        /* TtT (FiM 2004) = TP_t (AFRC 1993) = net protein retention for pregnancy to produce a 40 kg calf */
-      , TtT = 1000 * exp(log(10) * (3.707 - (5.698 * exp(-0.00262 * WG * 7))))   
-      ;
+    if (p > 0) {
 
-    if (WG > 0) {
+      var ME = 0
+        , MP = 0
+          /* EGU (FiM 2004) = E_t (AFRC 1993) = energy retention in the gravid foetus */
+        , EGU = exp(((151.665 - (151.64 * exp(-0.0000576 * WG * 7)))) * 2.30258)
+          /* TtT (FiM 2004) = TP_t (AFRC 1993) = net protein retention for pregnancy to produce a 40 kg calf */
+        , TtT = 1000 * exp(log(10) * (3.707 - (5.698 * exp(-0.00262 * WG * 7))))   
+        ;
 
-      if (WG * 7 >= 250)
-        ME = EGU * (0.0201 * exp(-0.0000576 * WG * 7)) / 0.133;
+      if (WG > 0) {
 
-      MP = TtT * (0.03437 * exp(-0.00262 * WG * 7)) / 0.85;
-    
+        if (WG * 7 >= 250)
+          ME = EGU * (0.0201 * exp(-0.0000576 * WG * 7)) / 0.133;
+
+        MP = TtT * (0.03437 * exp(-0.00262 * WG * 7)) / 0.85;
+      
+      }
+
+      return {
+          E: ME
+        , P: MP
+      };
+
+    } else {
+
+      return {
+          E: 0
+        , P: 0
+      };
+
     }
-
-    return {
-        E: ME
-      , P: MP
-    };
 
   };
 
@@ -1923,26 +2270,38 @@ var gb = (function () {
 
     weight  [{ME, MP}]
     BWC     [kg]        body weight change
+    p       [#]         parity
   */
 
-  var weight = function (BWC) {
+  var weight = function (BWC, p) {
 
-    var ME = 0
-      , MP = 0
-      ;
+    if (p > 0) {
 
-    if (BWC < 0) {
-      ME = 19.3 * BWC * 0.78;
-      MP = BWC * 138.0;
+      var ME = 0
+        , MP = 0
+        ;
+
+      if (BWC < 0) {
+        ME = 19.3 * BWC * 0.78;
+        MP = BWC * 138.0;
+      } else {
+        ME = 19.3 * BWC / 0.65
+        MP = BWC * 233.0;
+      }
+
+      return {
+          E: ME
+        , P: MP
+      };
+
     } else {
-      ME = 19.3 * BWC / 0.65
-      MP = BWC * 233.0;
-    }
 
-    return {
-        E: ME
-      , P: MP
-    };
+      return {
+          E: 0
+        , P: 0
+      };
+
+    }
 
   };
 
@@ -1985,11 +2344,28 @@ var gb = (function () {
 
 /*
   Agabriel, J. (ed.) (2010)
+
+  cows
   
   Energy and protein requirements according to the French system of feed evaluation and requirements. Energy is
   expressed as UFL (unité fourragere lait) and protein is expressed as g PDI, true protein.
 
   Information about energy mobilization is taken from Jarrige (1989).
+
+  young stock
+
+  Energy and protein requirements according to the French system of feed evaluation and requirements.
+
+  Agabriel (2010) mostly refers to Jarrige (1988) with regard to the energy and protein requirements for dairy heifers,
+  therefore most of the references are from Jarrige (1989).
+
+  Energy is expressed as UFL (unité fourragere lait) and protein is expressed as g PDI (true protein).
+
+  INRA doesn´t mention an activity addition due to grazing for heifers, but the NRC approach as described
+  above will be used nonetheless.
+
+  The energy and protein requirements for gestation are not calculated separately, but are included in the
+  requirements for growth.
 */
 
 var fr = (function () {
@@ -1997,33 +2373,61 @@ var fr = (function () {
   /*
     Agabriel (2010) eqs. 2.7, 2.16, Dong (2014)
 
+    cows
+
     Energy requirements for maintenance adjusted for forage proportion acc. to Dong et al. (2014), see above.
+
+    young stock
+
+    Equation for energy requirement for maintenance taken from Agabriel (2010) p. 94, 95 and Table 5.1.
+    Equation for protein requirement for maintenance taken from Agabriel (2010) p. 94.
+    For calculating k_m and k_l according to Agabriel (2010) Table 8.1, q (ME/GE) is assumed to be 0.57.
 
     maintenance [{UFL, PDI}]      Adjusted for share of forages in diet (by AFBI)
     BW          [kg]              Body weight
     DMI         [kg]              Dry matter intake (if unknow assume IC ~ DMI @ FV = 1)
     f           [kg (DM) kg (DM)] Share of forage in diet
+    p           [#]               parity
   */
 
-  var maintenance = function (BW, DMI, f) {
+  var maintenance = function (BW, DMI, f, p) {
 
-    var UFL = 0.041 * pow(BW, 0.75)
-      , PDI = 3.25 * pow(BW, 0.75)
-      ;
+    if (p > 0) {
 
-    if (f) {
-      if (f < 0.3)
-        UFL = 0.039 * pow(BW, 0.75); /* k_l = 0.60 */
-      else if (f >= 0.3 && f <= 0.99)
-        UFL = 0.041 * pow(BW, 0.75);
-      else
-        UFL = 0.045 * pow(BW, 0.75);
+      var UFL = 0.041 * pow(BW, 0.75)
+        , PDI = 3.25 * pow(BW, 0.75)
+        ;
+
+      if (f) {
+        if (f < 0.3)
+          UFL = 0.039 * pow(BW, 0.75); /* k_l = 0.60 */
+        else if (f >= 0.3 && f <= 0.99)
+          UFL = 0.041 * pow(BW, 0.75);
+        else
+          UFL = 0.045 * pow(BW, 0.75);
+      }
+
+      return {
+          E: UFL
+        , P: PDI
+      };
+
+    } else {
+
+          /* k_m [0-1] efficency of using ME for maintenance */
+      var k_m = 0.287 * 0.57 + 0.554
+          /* k_l [0-1] efficency of using ME for lactation TODO: (0.57-0.57)? */
+        , k_l = 0.60 + 0.24 * (0.57-0.57)
+        , UFL = (((90 * pow(BW, 0.75)) * k_l ) / k_m) / 1700
+        , PDI = 3.25 * pow(BW, 0.75)
+        ;
+
+      return {
+          E: UFL
+        , P: PDI
+      };
+
     }
-
-    return {
-        E: UFL
-      , P: PDI
-    };
 
   };
 
@@ -2034,21 +2438,33 @@ var fr = (function () {
     milk        [kg]          Milk yield in kg raw milk
     fat         [%]           Milk fat content
     protein     [%]           Milk protein content
+    p           [#]           parity
   */
 
-  var production = function (milk, fat, protein) {
+  var production = function (milk, fat, protein, p) {
 
-    /* % to g kg-1 */
-    fat *= 10;
-    protein *= 10;
+    if (p > 0) {
 
-    var UFL = milk * (0.44 + (0.0055 * (fat - 40)) + (0.0033 * (protein - 31)));
-    var PDI = (milk * protein) / 0.64;
+      /* % to g kg-1 */
+      fat *= 10;
+      protein *= 10;
 
-    return {
-        E: UFL
-      , P: PDI
-    };
+      var UFL = milk * (0.44 + (0.0055 * (fat - 40)) + (0.0033 * (protein - 31)));
+      var PDI = (milk * protein) / 0.64;
+
+      return {
+          E: UFL
+        , P: PDI
+      };
+
+    } else {
+
+      return {
+          E: 0
+        , P: 0
+      };      
+
+    }
 
   };
 
@@ -2058,58 +2474,129 @@ var fr = (function () {
     gestation   [{UFL, PDI}]  
     WG          [week]        Week of gestation (1-40)
     WB          [kg]          Birthweight of calf
+    p           [#]           parity
   */
 
-  var gestation = function (WG, WB) {
+  var gestation = function (WG, WB, p) {
 
-    var UFL = 0
-      , PDI = 0
-      ;
+    if (p > 0) {
 
-    if (WG > 0) {
-      UFL = 0.00072 * WB * exp(0.116 * WG);
-      PDI = 0.07 * WB * exp(0.111 * WG);
+      var UFL = 0
+        , PDI = 0
+        ;
+
+      if (WG > 0) {
+        UFL = 0.00072 * WB * exp(0.116 * WG);
+        PDI = 0.07 * WB * exp(0.111 * WG);
+      }
+
+      return {
+          E: UFL
+        , P: PDI
+      };
+
+    } else {
+
+      return {
+          E: 0
+        , P: 0
+      };      
+
     }
-
-    return {
-        E: UFL
-      , P: PDI
-    };
 
   };
 
   /*
+    cows
+
     Energy requirement and supply for and from weight change taken from Jarrige (1989) p. 75.
 
     Protein supply from weight change taken from Agabriel (2010) p. 31, paragraph below eq. 2.24.
 
     The French system does not include protein requirements for reconstitution of body reserves.
 
-    mobilization  [{UFL, PDI}]  
-    BWC           [kg]          body weight change
-    WL            [week]        week of lactation
+    young stock
+
+    Equation for calculating energy requirement for growth taken from Agabriel (2010) p. 95 and equation 5.1
+
+    Equation for calculating protein requirement for growth taken from Jarrige (1989) p.
+
+    Both the energy and protein requirements for growth depend on the composition of the body weight gain, and the
+    parameters GLIP and GPROT represent the daily gain of fat and protein, respectively. GLIP and GPROT are calculated
+    using a model originally published by Robelin and Daenicke (1980), which is used in an updated form in Agabriel
+    (2010). For use in SOLID-DSS, the animal category "early maturing heifer" (génisses précoces en croissance) was
+    chosen, and the growth model is valid for such heifers with body weights between 200 and 480 kg.
+
+    For calculating k_l and k_f according to Agabriel (2010) Table 8.1, q (ME/GE) is assumed to be 0.57.
+
+    k_PDI values were taken from Jarrige (1989) Table 9.3
+
+    weight  [{UFL, PDI}]  
+    BWC     [kg]          body weight change
+    WL      [week]        week of lactation
+    p       [#]           parity
   */
 
-  var weight = function (BWC, WL) {
+  var weight = function (BWC, WL, p) {
 
-    var UFL = 0
-      , PDI = 0
-      ;
+    if (p > 0) {
+    
+      var UFL = 0
+        , PDI = 0
+        ;
 
-    if (BWC < 0) {
-      /* 3.5 = 4.5 * 0.8; 80 % of the energy content of body reserves is used for milk production */
-      UFL = BWC * 3.5;
+      if (BWC < 0) {
+        /* 3.5 = 4.5 * 0.8; 80 % of the energy content of body reserves is used for milk production */
+        UFL = BWC * 3.5;
+      } else {
+        UFL = BWC * 4.5;
+      }
+
+      if (BWC < 0 && WL <= 8)
+        PDI = 40 * UFL;
+
+      return {
+          E: UFL
+        , P: PDI
+      };
+
     } else {
-      UFL = BWC * 4.5;
+
+          /* EBW [kg] empty body weight, Agabriel (2010) p. 96 equation 5.9, with C_0 = 0.482 and C_1 = 1.096 */
+      var EBW = 0.482 * pow(BW, 1.096)
+          /* EBWC [kg] empty body weight change, Agabriel (2010) p. 97 equation 5.16, with C_1 = 1.096 */
+        , EBWC = (EBW / BW) * 1.096 * BWC
+          /* GLIP [kg] daily gain of fat, Agabriel (2010) p. 97 equation 5.17, with B_0 = 0.001 and B_1 = 1.883 */
+        , GLIP = 0.001 * 1.883 * pow(EBW, (1.883-1)) * EBWC
+          /* GPROT [kg] daily gain for protein, Agabriel(2010) p. 97 equation 5.14 */
+        , GPROT = 0.1436 * pow((EBWC - GLIP), 1.0723)
+          /* RE [Mcal day-1] energy retention */
+        , RE = 5.48 * GPROT + 9.39 * GLIP
+          /* k_l [0-1] efficency of using ME for lactation */
+        , k_l = 0.60 + 0.24 * (0.57-0.57)
+          /* k_f [0-1] efficency of using ME for growth */
+        , k_f = 0.78 * 0.57 + 0.006
+          /* k_PDI [0-1] efficency of using PDI for growth */
+        , k_PDI = 0
+        , UFL = ((RE * k_l) / k_f ) / 1.7
+        , PDI = 0
+        ;
+
+      if (BW <= 400)
+        k_PDI = 0.68;
+      else if (400 < BW <= 600)
+        k_PDI = 0.53;
+      else
+        k_PDI = 0.28;
+
+      PDI = (GPROT * 1000) / k_PDI;
+
+      return {
+          E: UFL
+        , P: PDI
+      };
+
     }
-
-    if (BWC < 0 && WL <= 8)
-      PDI = 40 * UFL;
-
-    return {
-        E: UFL
-      , P: PDI
-    };
 
   };
 
@@ -3095,38 +3582,49 @@ return {
   growth models available today can supply the data needed to characterize feeds according to the British system of
   protein evaluation.
 
-  That is why the German uCP system, which is the simplest out of the four country-specific sytems of feed evaluation
-  chosen for SOLID-DSS, is used for all countries in SOLID-DSS. Even though the amount of utilizable protein at the
+  That is why the German uCP system, which is the simplest out of the four above-mentioned country-specific systems of
+  feed evaluation, is used for all countries in SOLID-DSS. Even though the amount of utilizable protein at the
   duodenum is defined as the sum of ruminally undegraded protein and microbial protein, the uCP content of a feed is
   calculated with simple empirical equations.
 
   In a comparison between the German uCP system with the Finnish system and the NRC (2001), using data from US
   production experiments, Schwab et al. (2005) found that the German uCP system predicted milk protein yield as well or
   even better than the NRC and Finnish system, despite being much simpler. The fact that the German uCP system performed
-  well compared with more sophisticated systems, despite its simplicity, encourages its use for SOLID-DSS.
+  well in comparison with more sophisticated systems, despite its simplicity, encourages its use for SOLID-DSS.
+
+  Feed intake is predicted according to GrazeIn, a system based on the fill value system of INRA (Agabriel 2010). In
+  order to calculate the fill values of the forages, the parameters QIL (for dairy cows) and QIB (for dairy heifers)
+  are calculated, see below.
 
   REFERENCES
 
-  Schwab, G. C., P. Huhtanen, C. W. Hunt, and T. Hvelplund. 2005. Nitrogen requirements of cattle. Pages 13-70 in
-  Nitrogen and Phosphorus Nutrition of Cattle. E. Pfeffer and A. N. Hristov, ed. CABI Publishing, Wallingford, UK.
-
+  Agabriel, J. 2010. Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables
+  INRA 2010. Editions Quae, France.
+  
+  Feed into Milk 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
+  Ed. C. Thomas. Nottingham University Press, UK.
+  
   GfE [Society of Nutrition Physiology] 2001. Empfehlungen zur Energie- und Nährstoffversorgung der Milchkühe und
   Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers] DLG-Verlag, Frankfurt/
   Main, Germany.
-
-  Lebzien, P., Voigt, J., Gabel, M., & Gädeken, D. 1996. Zur Schätzung der Menge an nutzbarem Rohprotein am Duodenum
+  
+  Lebzien, P., Voigt, J., Gabel, M. und Gädeken, D. 1996. Zur Schätzung der Menge an nutzbarem Rohprotein am Duodenum
   von Milchkühen. [On the estimation of utilizable crude protein at the duodenum of dairy cows] Journal of Animal
   Physiology and Animal Nutrition 76:218-223.
+  
+  MTT 2006. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations). Agrifood Research Finland,
+  Jokioninen, Finland, 84 p.
+  
+  MTT 2014. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations) [online]. Agrifood
+  Research Finland, Jokioinen. Accessed last on November 20, 2014, available at:
+  https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
+  
+  Schwab, G.C., Huhtanen, P., Hunt, C.W. and Hvelplund, T. 2005. Nitrogen requirements of cattle. Pages 13-70 in
+  Pfeffer, E., and Hristov, A.N. (ed.). Nitrogen and Phosphorus Nutrition of Cattle. CABI Publishing, Wallingford, UK.
 
-  Feed into Milk Consortium, 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
-  Ed. C. Thomas. Nottingham University Press, UK.
-
-  G. Tran et D. Sauvant (2002) p. 22 in Sauvant D., Perez J.-M., Tran G. (eds.), 2002. Tables de composition et de
+  Tran, G. et Sauvant, D. 2002. Page 22 in Sauvant D., Perez J.-M. et Tran G. (eds.) Tables de composition et de
   valeur nutritive des matières premières destinées aux animaux d´élevage: porcs, volailles, bovins, ovins, caprins,
-  lapins, chevaux, poissons. Paris, Inra-AFZ, 301 p.
-
-  Agabriel, J. (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables
-  INRA 2010. Editions Quae, France.
+  lapins, chevaux, poissons. Paris, Inra-AFZ, France, 301 p.
 
   LICENSE
 
@@ -3148,11 +3646,7 @@ var feed = feed || {};
 feed.evaluation = (function () {
 
 /*
-  The German system of feed evaluation is described in:
-
-  GfE [Society of Nutrition Physiology] 2001. Empfehlungen zur Energie- und Nährstoffversorgung der Milchkühe und
-  Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers] DLG-Verlag, Frankfurt/
-  Main, Germany.
+  The German system of feed evaluation is described in GfE (2001)
 
   Energy is expressed in MJ net energy lactation (NEL)
 
@@ -3199,7 +3693,7 @@ var de = (function () {
     var dCF = CF * CFD;
     var dOM = OM * OMD;
 
-    /* metabolizable energy [MJ kg-1 (DM)], e.g. 12.00 */
+    /* metabolizable energy [MJ kg-1 (DM)], e.g. 12.0 */
     ME = 0.0312 * dEE + 0.0136 * dCF + 0.0147 * (dOM - dEE - dCF) + 0.00234 * CP;
 
     return ME;
@@ -3235,10 +3729,6 @@ var de = (function () {
     1a, originally published by Lebzien et al. (1996). (In the above mentioned comparison between different systems of
     protein evaluation done by Schwab et al. (2005), equation 1a was used as well.)
 
-    Lebzien, P., Voigt, J., Gabel, M., & Gädeken, D. 1996. Zur Schätzung der Menge an nutzbarem Rohprotein am Duodenum
-    von Milchkühen. [On the estimation of utilizable crude protein at the duodenum of dairy cows] Journal of Animal
-    Physiology and Animal Nutrition 76:218-223.
-
     uCP [g kg-1 (DM)]   utilizable crude protein
     ME  [MJ kg-1 (DM)]  metabolizable energy
     CP  [g kg-1 (DM)]   crude protein
@@ -3255,11 +3745,11 @@ var de = (function () {
     Apart from satisfying the cow´s requirement of uCP, the German system also calculates the ruminal nitrogen balance
     in order to ensure an adequate supply of ruminally available protein for the ruminal microbes.
 
-    Equation for calculating the ruminal nitrogen balance (RNB) taken from GfE (2001) page 45.
+    Equation for calculating the ruminal nitrogen balance (RNB) taken from GfE (2001) page 45
 
-    RNB [g kg-1 (DM)] ruminal nitrogen balance
-    CP  [g kg-1 (DM)] crude protein
-    uCP [g kg-1 (DM)] utilizable crude protein
+    RNB [g kg-1 (DM)] ruminal nitrogen balance, e.g. 4
+    CP  [g kg-1 (DM)] crude protein, e.g. 235
+    uCP [g kg-1 (DM)] utilizable crude protein, e.g. 220
   */
 
   var RNB = function (CP, uCP) {
@@ -3282,11 +3772,11 @@ var de = (function () {
 var fi = (function () {
 
   /*
-    The Finnish system of feed evaluation is described online on:
+    The last description of the Finnish system of feed evaluation published in print is MTT (2006). Since then all
+    updates have been published online, hereafter quoted as MTT (2014). 
 
-    https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
-
-    All equations for calculating the energy contents of feeds are taken from the site "Energy value, ruminants"
+    Equations for calculating the energy contents of forages taken from the sub-site "Energy value, ruminants" of
+    MTT (2014)
 
     Energy is expressed in MJ metabolizable energy (ME)
 
@@ -3306,12 +3796,12 @@ var fi = (function () {
     is used instead [g kg-1 (DM)]*/
     var dOM = OM * OMD;
 
-    /* grass silage and other feeds */
+    /* fresh forages, fresh maize, fresh sorghum and grasssilage*/
     var ME_f = 0.016 * dOM;
 
     /*in Finland, maize silage is not commonly used. However, in case of using maize silage, the equation for wholecrop
     cereal silages can be used for maize silage as well. Consequently, the equation for maize silage is the same as the
-    one for whole crop silages.*/
+    one for whole crop silage.*/
 
     if (type === 'hay')
       ME_f = 0.0169 * dOM - 1.05;
@@ -3327,33 +3817,36 @@ var fi = (function () {
   };
 
   /*
-    All equations for calculating the energy contents of feeds are taken from the site "Energy value, ruminants"
+    Equations for calculating the energy contents of concentrates taken from the sub-site "Energy value, ruminants" of
+    MTT (2014)
 
     Energy is expressed in MJ metabolizable energy (ME)
-
-    TODO: Können wir die Verdaulichkeit der NfE irgendwo hernehmen, oder sollen wir stattdessen die Verdaulichkeit der
-    organischen Masse verwenden?
+    
+    The feed table included in SOLID-DSS gives the NfE digestibility of the feeds, but the plant growth models in
+    SOLID-DSS don´t supply the digestibility of NfE, therefore the following calculation is mainly given for reasons of
+    completeness.
 
     ME_c  [MJ kg-1 (DM)]      metabolizable energy of a concentrate, e.g. 12.2
-    OM    [g kg-1 (DM)]       organic matter, e.g. 962
     CP    [g kg-1 (DM)]       crude protein content, e.g. 125
     CPD   [kg kg-1]           digestibility of crude protein, e.g. 0.71
     CF    [g kg-1 (DM)]       crude fibre, e.g. 103
     CFD   [kg kg-1]           digestibility of crude fiber, e.g. 0.30
     EE    [g kg-1 (DM)]       ether extract content, e.g. 60
     EED   [kg kg-1]           digestibility of ether extracts, e.g. 0.84
+    NFE   [g kg-1 (DM)]       nitrogen free extracts, e.g. 500
     NFED  [kg kg-1]           digestibility of nitrogen free extracts, e.g. 0.83
   */
 
-  var ME_c = function (OM, CP, CPD, CF, CFD, EE, EED, /*NFE,*/ NFED) {
+  var ME_c = function (CP, CPD, CF, CFD, EE, EED, NFE, NFED) {
 
-    /*contents of digestible crude protein, digestible ether extracts, digestible crude fiber, nitrogen free extracts
-    and digestible nitrogen free extracts [g kg-1 (DM)]*/
     var dCP = CP * CPD;
+    /*content of digestible crude protein*/
     var dEE = EE * EED;
+    /*content of digestible ether extracts*/
     var dCF = CF * CFD;
-    var NFE = OM - CP - EE - CF;
+    /*content of digestible crude fiber*/
     var dNFE = NFE * NFED;
+    /*content of digestible nitrogen free extracts*/
 
     var ME_c = (15.2 * dCP + 34.2 * dEE + 12.8 * dCF + 15.9 * dNFE) * 1e-3;
 
@@ -3371,10 +3864,7 @@ var fi = (function () {
 var gb = (function () {
 
   /*
-    The British system of feed evaluation is described in:
-
-    Feed into Milk Consortium, 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
-    Ed. C. Thomas. Nottingham University Press, UK.
+    The British system of feed evaluation is described in Feed into Milk (2004)
 
     Energy is expressed in MJ metabolisable energy (ME)
 
@@ -3392,8 +3882,8 @@ var gb = (function () {
 
   var ME_f = function (OM, OMD, is_grass_or_hay) {
 
-    /* In FiM, the content of digestible organic matter in dry matter is called DOMD, expressed in %, so the equation is
-    ME = 0.16 * DOMD. Because using the same terminology in all country-specific systems makes SOLID-DSS less
+    /* In Feed into Milk, the content of digestible organic matter in dry matter is called DOMD, expressed in %, so the
+    equation is ME = 0.16 * DOMD. Because using the same terminology in all country-specific systems makes SOLID-DSS less
     susceptible to errors, the term dOM is used instead [g kg-1 (DM)], so the equation is ME = 0.016 * dOM*/
     var dOM = OM * OMD;
 
@@ -3416,10 +3906,7 @@ var gb = (function () {
 var fr = (function () {
 
   /*
-    The French system of feed evaluation is described in:
-
-    Agabriel, J. (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables
-    INRA 2010. Editions Quae, France.
+    The French system of feed evaluation is described in Agabriel (2010)
 
     Energy is expressed in unité fourragére lait (UFL). One UFL equals the net energy for lactation of 1 kg standard
     barley.
@@ -3434,7 +3921,7 @@ var fr = (function () {
     OM      [?]
     CP      [g kg-1 (DM)]   crude protein content, e.g. 134
     CF      [g kg-1 (DM)]   crude fibre content, e.g. 296
-    type    [enum]          simplified INRA calculation; maize or grass silage
+    type    [enum]          type of feed
     DM      [%]             dry matter content
     delta_F1
     pH      []              pH of grass silage
@@ -3470,6 +3957,10 @@ var fr = (function () {
         GE_o = 1.03 * (3910 + 2.45 * CP_o + 169.9 * pH)
       else
         GE_o = 3910 + 2.45 * CP_o + 169.9 * pH;
+  /*the gross energy content of wholecropsilage is calculated the same way as wilted grasssilage, that´s why the equations
+  are the same*/
+    } else if (type === 'wholecropsilage') {
+      GE_o = 1.03 * (3910 + 2.45 * CP_o + 169.9 * pH);
     } else if (type === 'dehydrated alfalfa') {
       GE_o = 4618 + 2.051 * CP_o;
     }
@@ -3494,6 +3985,9 @@ var fr = (function () {
     if (type === 'maizesilage')
       dE = 1.001 * (OMD * 100) - 2.86;
     if (type === 'grasssilage')
+      dE = 1.0263 * (OMD * 100) - 5.723;
+    /*dE of wholecropsilage is calculated the same way as wilted grasssilage, that´s why the equations are the same*/
+    if (type === 'wholecropsilage')
       dE = 1.0263 * (OMD * 100) - 5.723;
     if (type === 'dehydrated alfalfa')
       dE = 1.003 * (OMD * 100) - 3.00;
@@ -3538,11 +4032,7 @@ var fr = (function () {
     ash       [g kg-1 (DM)]   ash, e.g. 30
     req_m     [UFL]           maintenance requirements
     req_t     [UFL]           total requirements
-    delta_C1  []              feed material group correction coefficient taken from
-
-    G. Tran et D. Sauvant (2002) p. 22 in Sauvant D., Perez J.-M., Tran G. (eds.), 2002. Tables de composition et de
-    valeur nutritive des matières premières destinées aux animaux d´élevage: porcs, volailles, bovins, ovins, caprins,
-    lapins, chevaux, poissons. Paris, Inra-AFZ, 301 p.
+    delta_C1  []              feed material group correction coefficient taken from Tran et Sauvant (2002)
 
     corn gluten meal = 308
     alfalfa protein concentrate = 248
@@ -3604,44 +4094,73 @@ var fr = (function () {
 
   /*
     In SOLID-DSS, feed intake is predicted according to GrazeIn (details see dairy.intake). For the calculation of the
-    fill values of the forages, the parameter QIL is required.
+    fill values of forages, the parameters QIL (for dairy cows) and QIB (for dairy heifers) are required.
 
-    Equations for calculating QIL are taken from Agabriel (2010), Table 8.14.
-
-    Except for straw: Agabriel does not give an equation to calculate the fill value of straw. So a regression between
-    OMD and FV for straw from wheat, barley and oats (both untreated and treated with ammoniak) was formulated (values
-    taken from the INRA feed tables in Agabriel (2010), and a QIL = ... equation was made out of the regression.
-
+    Equations for calculating QIL and QIB are taken from Agabriel (2010), Table 8.14.
+    
     In GrazeIn, OMD is called dOM and is expressed in %, e.g. 72. Because using the same terminology in all country-
     specific systems makes SOLID-DSS less susceptible to errors, OMD is used in kg kg-1 (e.g. 0.72), just like in the
-    other systems. Consequently, the equations for QIL were adjusted.
+    other systems. Consequently, the equations for QIL and QIB were adjusted.
 
-    QIL       [g kg-1]      ingestibility in g per kg metabolic live weight
+    The one expection is straw, for which Agabriel (2010) doesn´t supply an equation for calculating the fill value.
+    Therefore linear regressions for the fill values of straw depending on OMD were produced based on data from the
+    feed tables in Agabriel (2010) and expressed as QIL = ... and QIB = ... The linear regressions are valid for OMD
+    values between 0.42 and 0.68 and fill values between 1.00 and 1.60 (QIL) and 1.07 and 2.00 (QIB). The coefficients
+    of determination of the regressions are 0.23 (QIL) and 0.23 (QIB).
+
+    QIL       [g kg-1]      ingestibility in g per kg metabolic live weight, dairy cows
+    QIB       [g kg-1]      ingestibility in g per kg metabolic live weight, heifers
     OMD       [kg kg-1]     digestibility of organic matter, e.g. 0.72
-    CP        [g kg-1 (DM)] crude protein content
+    CP        [g kg-1 (DM)] crude protein content, e.g. 235
     DM        [g kg-1]      dry matter content
-    type      [enum]        type of forage (fresh, silage, hay, maizesilage)
+    type      [enum]        type of forage (fresh, grasssilage, hay, maizesilage)
     delta_FR1 []           species adjustment parameter fresh:
-                              perm. grassland = 0
-                              grasses = -3.7
-                              legumes = 1.0
+                              cows (QIL)
+                                perm. grassland = 0
+                                grasses = -3.7
+                                legumes = 1.0
+                              young stock (QIB)
+                                perm. grassland = 0
+                                grasses = -1.6
+                                legumes = 4.1
     delta_S1  []            species adjustment parameter silages:
-                              perm. grassland = 0
-                              grasses = -1.4
-                              legumes = 2.8
+                              cows (QIL)
+                                perm. grassland = 0
+                                grasses = -1.4
+                                legumes = 2.8
+                              young stock (QIB)
+                                perm. grassland = 0
+                                grasses = -1.9
+                                legumes = 2.8
     delta_H1  []            species adjustment parameter hay:
-                              perm. grassland = 0
-                              grasses = -0.9
-                              legumes = 2.6
+                              cows (QIL)
+                                perm. grassland = 0
+                                grasses = -0.9
+                                legumes = 2.6
+                              young stock (QIB)
+                                perm. grassland = 0
+                                grasses = -1.4
+                                legumes = 3.4
     delta_S2  []            technical adjustment parameter silage:
-                              unwilted & w/o additives = -10.1
-                              unwilted & w additives = -0.8
-                              wilted = 1.6
-                              haylage = 0
+                              cows (QIL)
+                                unwilted & w/o additives = -10.1
+                                unwilted & w additives = -0.8
+                                wilted = 1.6
+                                haylage = 0
+                              young stock (QIB)
+                                unwilted & w/o additives = -9.9
+                                unwilted & w additives = -0.9
+                                wilted = 1.9
+                                haylage = 0
     delta_H2  []            technical adjustment parameter hay:
-                              ventilated = 6.6
-                              wilted in sun & good weather = 5.5
-                              wilted in sun = 0
+                              cows (QIL)
+                                ventilated = 6.6
+                                wilted in sun & good weather = 5.5
+                                wilted in sun = 0
+                              young stock (QIB)
+                                ventilated = 6.6
+                                wilted in sun & good weather = 5.2
+                                wilted in sun = 0
   */
 
   var QIL = function (OMD, CP, DM, type, delta_FR1, delta_S1, delta_H1, delta_S2, delta_H2) {
@@ -3657,7 +4176,7 @@ var fr = (function () {
     else if (type === 'maizesilage')
       QIL = -76.4 + 2.39 * (OMD * 100) + 1.44 * (DM / 10);
     else if (type === 'straw')
-      QIL = 140 / (1.982 - 0.008 * (OMD * 100)); 
+      QIL = 140 / (1.938 - 0.013 * (OMD * 100)); 
     else 
       QIL = 66.3 + 0.655 * (OMD * 100) + 0.098 * CP + 0.626 * (DM / 10);
 
@@ -3665,16 +4184,35 @@ var fr = (function () {
 
   };
 
+  var QIB = function (OMD, CP, DM, type, delta_FR1, delta_S1, delta_H1, delta_S2, delta_H2) {
+
+    var QIB = 0;
+
+    if (type === 'fresh')
+      QIB = 6.44 + 0.782 * (OMD * 100) + 0.112 * CP + 0.679 * (DM / 10) + delta_FR12;
+    else if (type === 'grasssilage')
+      QIB = 47 + 0.228 * (OMD * 100) + 0.148 * CP + delta_S12 + delta_S22;
+    else if (type === 'hay')
+      QIB = 30.3 + 0.559 * (OMD * 100) + 0.132 * CP + delta_H12 + delta_H22;
+    else if (type === 'maizesilage')
+      QIB = -45.49 + 1.34 * (OMD * 100) + 1.15 * (DM / 10);
+    else if (type === 'straw')
+      QIB = 95 / (2.380 - 0.018 * (OMD * 100)); 
+    else 
+      QIB = 6.44 + 0.782 * (OMD * 100) + 0.112 * CP + 0.679 * (DM / 10);
+
+    return QIB;
+
+  };
 
   return {
       E_f: UFL_f
     , E_c: UFL_c
     , QIL: QIL
+    , QIB: QIB
   };
 
 }());
-
-
 
 return {
     de: de
@@ -3687,11 +4225,18 @@ return {
 
 
 /*
-  Little feed database (Gruber Tabelle). Except DOM (in %) all values are on DM basis (g kg-1 (DM)).
+  Small feed database, mainly based on information from DLG (1997), except values for NDF, which were taken from the French
+  feed tables in Agabriel (2010).
+  
+  Values are expressed on dry matter basis (g kg-1 (DM)) except dry matter content (g kg-1 feed) and digestibilities (kg kg-1).
 
   REFERENCES
-
-  Gruber Tabelle, 2014. Bayerische Landesanstalt für Landwirtschaft (LfL) 
+  
+  DLG [German Agricultural Society]. 1997. DLG-Futterwerttabellen – Wiederkäuer [Feed Tables Ruminants]. University Hohenheim
+  (ed.). 7th edition, DLG-Verlag, Frankfurt/Main, Germany.
+  
+  Agabriel, J. (ed.) (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables
+  INRA 2010. Editions Quae, France.
 
   LICENSE
 
@@ -3707,10 +4252,6 @@ return {
   In: Wiesinger, K., Cais, K., Obermaier, S. (eds), Angewandte Forschung und Beratung für den ökologischen Landbau in 
   Bayern: Öko-Landbau-Tag 2014 am 9. April 2014 in Triesdorf; Tagungsband. LfL, Freising-Weihenstephan, pp. 19-22.
 
-  TODO:
-
-  - remove NEL, ME & uCP from feed table
-
 */
 
 var feed = feed || {};
@@ -3722,2218 +4263,2378 @@ feed.feeds = [
   name_de []
   delta_F1 […]
   delta_C1 […]
-  delta_FR1 […]
-  delta_S1 […]
-  delta_S2 […]
-  delta_H1 […]
-  delta_H2 […]
+  delta_FR1_QIL […]
+  delta_S1_QIL […]
+  delta_S2_QIL […]
+  delta_H1_QIL […]
+  delta_H2_QIL […]
+  delta_FR1_QIB […]
+  delta_S1_QIB […]
+  delta_S2_QIB […]
+  delta_H1_QIB […]
+  delta_H2_QIB […]
   eco [0/1]
   DM [g kg-1 feed]
   ash [g kg-1 DM]
   OM [g kg-1 DM]
   OMD [kg kg-1]
-  ME [MJ kg-1 DM]
-  NEL [MJ kg-1 DM]
   CP [g kg-1 DM]
-  uCP [g kg-1 DM]
-  RNB [g kg-1 DM]
   CPD [kg kg-1]
   EE [g kg-1 DM]
   EED [kg kg-1]
   CF [g kg-1 DM]
   CFD [kg kg-1]
-  ADF [g kg-1 DM]
+  NFE [g kg-1 DM]
+  NFED [kg kg-1]
   NDF [g kg-1 DM]
-  sugar [g kg-1 DM]
   starch [g kg-1 DM]
-  Ca [g kg-1 DM]
-  P [g kg-1 DM]
-  Na [g kg-1 DM]
-  Mg [g kg-1 DM]
-  K [g kg-1 DM]
+  sugar [g kg-1 DM]
 */
 {
   id: 1,
   type: 'fresh',
-  name: 'Grassland, pasture, 1st growth, good quality',
-  name_de: 'Grünland, Weide., 1.Aufw.  gut',
+  name: 'Grassland, 1st growth, leafy stage',
+  name_de: 'Grünland 4+ Nutzungen grasreich, 1. Aufwuchs, Schossen',
   delta_F1: 82,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 1,
-  DM: 150,
-  ash: 95,
-  OM: 905,
-  OMD: 0.8,
-  ME: 11.52,
-  NEL: 7.06,
-  CP: 215,
-  uCP: 152,
-  RNB: 10,
-  CPD: 0.81,
-  EE: 40,
-  EED: 0.59,
-  CF: 170,
-  CFD: 0.8,
-  ADF: 200,
-  NDF: 310,
-  sugar: 100,
-  starch: 0,
-  Ca: 7.4,
-  P: 3.6,
-  Na: 0.5,
-  Mg: 2.1,
-  K: 28
-},
-{
-  id: 2,
-  type: 'fresh',
-  name: 'Grassland, pasture, 1st growth, medium quality',
-  name_de: 'Grünland, Weide., 1.Aufw.  mittel',
-  delta_F1: 82,
-  delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 160,
   ash: 95,
   OM: 905,
-  OMD: 0.78,
-  ME: 11.05,
-  NEL: 6.7,
-  CP: 195,
-  uCP: 144,
-  RNB: 8,
-  CPD: 0.77,
-  EE: 40,
-  EED: 0.56,
-  CF: 205,
-  CFD: 0.78,
-  ADF: 250,
-  NDF: 370,
-  sugar: 100,
+  OMD: 0.84,
+  CP: 235,
+  CPD: 0.82,
+  EE: 43,
+  EED: 0.61,
+  CF: 172,
+  CFD: 0.81,
+  NFE: 455,
+  NFED: 0.88,
+  NDF: 467,
   starch: 0,
-  Ca: 7.4,
-  P: 3.6,
-  Na: 0.5,
-  Mg: 2.1,
-  K: 28
+  sugar: 45
+},
+{
+  id: 2,
+  type: 'fresh',
+  name: 'Grassland, 1st growth, heading stage',
+  name_de: 'Grünland, 4+ Nutzungen grasreich, 1. Aufwuchs, volles Rispenschieben',
+  delta_F1: 82,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 180,
+  ash: 97,
+  OM: 903,
+  OMD: 0.77,
+  CP: 207,
+  CPD: 0.77,
+  EE: 47,
+  EED: 0.56,
+  CF: 231,
+  CFD: 0.78,
+  NFE: 418,
+  NFED: 0.78,
+  NDF: 485,
+  starch: 0,
+  sugar: 35
 },
 {
   id: 3,
   type: 'fresh',
-  name: 'Grassland, pasture, 1st growth, low quality',
-  name_de: 'Grünland, Weide., 1.Aufw.  gering',
+  name: 'Grassland, 1st growth, beginning of bloom',
+  name_de: 'Grünland, 4+ Nutzungen, 1. Aufwuchs, Beginn Blüte',
   delta_F1: 82,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 200,
-  ash: 95,
-  OM: 905,
+  DM: 220,
+  ash: 93,
+  OM: 907,
   OMD: 0.75,
-  ME: 9.99,
-  NEL: 5.9,
-  CP: 155,
-  uCP: 133,
-  RNB: 4,
+  CP: 187,
   CPD: 0.77,
-  EE: 30,
+  EE: 45,
   EED: 0.51,
-  CF: 280,
+  CF: 261,
   CFD: 0.75,
-  ADF: 340,
-  NDF: 500,
-  sugar: 70,
+  NFE: 414,
+  NFED: 0.76,
+  NDF: 540,
   starch: 0,
-  Ca: 7.4,
-  P: 3.6,
-  Na: 0.5,
-  Mg: 2.1,
-  K: 28
+  sugar: 25
 },
 {
   id: 4,
   type: 'fresh',
-  name: 'Grassland, pasture, regrowth, good quality',
-  name_de: 'Grünland, Weide 2. Aufw. gut',
+  name: 'Grassland, regrowth, <4 weeks',
+  name_de: 'Grünland, 4+ Nutzungen, 2.  Aufwuchs < 4 Wochen',
   delta_F1: 82,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 160,
   ash: 104,
   OM: 896,
   OMD: 0.75,
-  ME: 11.12,
-  NEL: 6.74,
   CP: 235,
-  uCP: 149,
-  RNB: 14,
   CPD: 0.79,
-  EE: 40,
+  EE: 45,
   EED: 0.42,
-  CF: 165,
+  CF: 207,
   CFD: 0.74,
-  ADF: 200,
-  NDF: 300,
-  sugar: 100,
+  NFE: 409,
+  NFED: 0.76,
+  NDF: 499,
   starch: 0,
-  Ca: 9.2,
-  P: 3.7,
-  Na: 0.7,
-  Mg: 2.6,
-  K: 26.2
+  sugar: 71
 },
 {
   id: 5,
   type: 'fresh',
-  name: 'Grassland, pasture, regrowth, medium quality',
-  name_de: 'Grünland, Weide 2. Aufw. mittel',
+  name: 'Grassland, regrowth, 4-6 weeks',
+  name_de: 'Grünland, 4+ Nutzungen, 2. Aufwuchs, 4-6 Wochen',
   delta_F1: 82,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 170,
+  DM: 180,
   ash: 103,
   OM: 897,
   OMD: 0.73,
-  ME: 10.28,
-  NEL: 6.28,
-  CP: 180,
-  uCP: 140,
-  RNB: 6,
+  CP: 213,
   CPD: 0.77,
-  EE: 40,
+  EE: 45,
   EED: 0.47,
-  CF: 205,
+  CF: 229,
   CFD: 0.73,
-  ADF: 250,
-  NDF: 370,
-  sugar: 100,
+  NFE: 410,
+  NFED: 0.72,
+  NDF: 485,
   starch: 0,
-  Ca: 9.2,
-  P: 3.7,
-  Na: 0.7,
-  Mg: 2.6,
-  K: 26.2
+  sugar: 61
 },
 {
   id: 6,
   type: 'fresh',
-  name: 'Grassland, pasture, regrowth, low quality',
-  name_de: 'Grünland, Weide 2. Aufw. gering',
+  name: 'Grassland, regrowth, 7-9 weeks',
+  name_de: 'Grünland, 4+ Nutzungen, 2. Aufwuchs, 7-9 Wochen',
   delta_F1: 82,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 180,
+  DM: 200,
   ash: 101,
   OM: 899,
   OMD: 0.71,
-  ME: 10.11,
-  NEL: 6.02,
-  CP: 172,
-  uCP: 137,
-  RNB: 6,
+  CP: 190,
   CPD: 0.74,
-  EE: 40,
+  EE: 41,
   EED: 0.53,
-  CF: 240,
+  CF: 266,
   CFD: 0.72,
-  ADF: 290,
-  NDF: 430,
-  sugar: 100,
+  NFE: 402,
+  NFED: 0.71,
+  NDF: 530,
   starch: 0,
-  Ca: 9.2,
-  P: 3.7,
-  Na: 0.7,
-  Mg: 2.6,
-  K: 26.2
+  sugar: 50
 },
 {
   id: 7,
   type: 'fresh',
-  name: 'Grass-clover, 1st growth, early mature',
-  name_de: 'Kleegras 1. Aufwuchs - in der Knospe',
-  delta_F1: -11,
+  name: 'Lucerne, 1st growth, budding stage',
+  name_de: 'Luzerne, 1. Schnitt, in der Knospe',
+  delta_F1: 82,
   delta_C1: 0,
-  delta_FR1: 1,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 1,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 4.1,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 160,
-  ash: 102,
-  OM: 890,
-  OMD: 0.75,
-  ME: 10.58,
-  NEL: 6.37,
-  CP: 215,
-  uCP: 149,
-  RNB: 11,
-  CPD: 0.74,
-  EE: 30,
-  EED: 0.6,
-  CF: 220,
-  CFD: 0.71,
-  ADF: 270,
-  NDF: 435,
-  sugar: 80,
+  DM: 170,
+  ash: 106,
+  OM: 894,
+  OMD: 0.7,
+  CP: 219,
+  CPD: 0.82,
+  EE: 31,
+  EED: 0.41,
+  CF: 238,
+  CFD: 0.55,
+  NFE: 406,
+  NFED: 0.75,
+  NDF: 449,
   starch: 0,
-  Ca: 10,
-  P: 4.4,
-  Na: 0.5,
-  Mg: 2.3,
-  K: 35
+  sugar: 15
 },
 {
   id: 8,
   type: 'fresh',
-  name: 'Grass-clover, regrowth, early mature',
-  name_de: 'Kleegras, Folgeaufwuchs - in der Knospe',
-  delta_F1: -11,
-  delta_C1: 0,
-  delta_FR1: 1,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 1,
-  DM: 170,
-  ash: 105,
-  OM: 903,
-  OMD: 0.72,
-  ME: 9.94,
-  NEL: 5.9,
-  CP: 205,
-  uCP: 140,
-  RNB: 10,
-  CPD: 0.72,
-  EE: 30,
-  EED: 0.6,
-  CF: 240,
-  CFD: 0.69,
-  ADF: 288,
-  NDF: 456,
-  sugar: 70,
-  starch: 0,
-  Ca: 11.4,
-  P: 4.3,
-  Na: 0.7,
-  Mg: 2.4,
-  K: 31.9
-},
-{
-  id: 9,
-  type: 'fresh',
-  name: 'Lucerne, early mature',
-  name_de: 'Luzerne, Beginn Knospenbildung',
+  name: 'Lucerne, 1st growth, beginning of bloom',
+  name_de: 'Luzerne, 1. Schnitt, Beginn Blüte',
   delta_F1: 82,
   delta_C1: 0,
-  delta_FR1: 1,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 1,
-  DM: 170,
-  ash: 105,
-  OM: 894,
-  OMD: 0.75,
-  ME: 10.4,
-  NEL: 6.2,
-  CP: 240,
-  uCP: 151,
-  RNB: 14,
-  CPD: 0.84,
-  EE: 30,
-  EED: 0.38,
-  CF: 210,
-  CFD: 0.57,
-  ADF: 285,
-  NDF: 340,
-  sugar: 15,
-  starch: 0,
-  Ca: 18,
-  P: 3,
-  Na: 0.5,
-  Mg: 3.2,
-  K: 30
-},
-{
-  id: 10,
-  type: 'fresh',
-  name: 'Lucerne, mid mature',
-  name_de: 'Luzerne, Beginn Blüte',
-  delta_F1: 82,
-  delta_C1: 0,
-  delta_FR1: 1,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 1,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 4.1,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 200,
   ash: 106,
   OM: 894,
   OMD: 0.68,
-  ME: 9.31,
-  NEL: 5.45,
-  CP: 190,
-  uCP: 138,
-  RNB: 8,
+  CP: 187,
   CPD: 0.8,
-  EE: 30,
+  EE: 29,
   EED: 0.4,
-  CF: 275,
+  CF: 286,
   CFD: 0.53,
-  ADF: 330,
-  NDF: 385,
-  sugar: 25,
+  NFE: 392,
+  NFED: 0.75,
+  NDF: 487,
   starch: 0,
-  Ca: 20,
-  P: 2.8,
-  Na: 1,
-  Mg: 2.7,
-  K: 26
+  sugar: 25
+},
+{
+  id: 9,
+  type: 'fresh',
+  name: 'Lucerne, regrowth, budding stage',
+  name_de: 'Luzerne, Folgeaufwuchs, in der Knospe',
+  delta_F1: 82,
+  delta_C1: 0,
+  delta_FR1_QIL: 1,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 4.1,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 180,
+  ash: 97,
+  OM: 903,
+  OMD: 0.7,
+  CP: 214,
+  CPD: 0.8,
+  EE: 34,
+  EED: 0.43,
+  CF: 247,
+  CFD: 0.51,
+  NFE: 408,
+  NFED: 0.78,
+  NDF: 449,
+  starch: 0,
+  sugar: 40
+},
+{
+  id: 10,
+  type: 'fresh',
+  name: 'Lucerne, regrowth, beginning of bloom',
+  name_de: 'Luzerne, Folgeaufwuchs, Beginn Blüte',
+  delta_F1: 82,
+  delta_C1: 0,
+  delta_FR1_QIL: 1,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 4.1,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 210,
+  ash: 95,
+  OM: 905,
+  OMD: 0.67,
+  CP: 204,
+  CPD: 0.8,
+  EE: 31,
+  EED: 0.38,
+  CF: 281,
+  CFD: 0.49,
+  NFE: 389,
+  NFED: 0.73,
+  NDF: 487,
+  starch: 0,
+  sugar: 35
 },
 {
   id: 11,
   type: 'fresh',
-  name: 'Rye, whole plant, immature',
-  name_de: 'Roggen, Schossen',
+  name: 'Rye, whole plant, full ear emergence',
+  name_de: 'Roggen, volles Ährenschieben',
   delta_F1: -11,
   delta_C1: 0,
-  delta_FR1: -4,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: -3.7,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: -1.6,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 220,
-  ash: 99,
-  OM: 901,
-  OMD: 0.82,
-  ME: 11.33,
-  NEL: 6.94,
-  CP: 185,
-  uCP: 152,
-  RNB: 5,
-  CPD: 0.82,
-  EE: 40,
+  DM: 170,
+  ash: 88,
+  OM: 912,
+  OMD: 0.77,
+  CP: 147,
+  CPD: 0.76,
+  EE: 35,
   EED: 0.69,
-  CF: 230,
-  CFD: 0.83,
-  ADF: 276,
-  NDF: 437,
-  sugar: 120,
+  CF: 288,
+  CFD: 0.79,
+  NFE: 442,
+  NFED: 0.76,
+  NDF: 597,
   starch: 0,
-  Ca: 7.5,
-  P: 6.6,
-  Na: 1,
-  Mg: 1.6,
-  K: 28
+  sugar: 124
 },
 {
   id: 12,
-  type: 'concentrate',
-  name: 'Brewer\'s grains, silage',
-  name_de: 'Biertrebersilage',
-  delta_F1: 0,
+  type: 'fresh',
+  name: 'Rye, dough stage, 33% grains',
+  name_de: 'Roggen, in der Teigreife, Körneranteil 33 %',
+  delta_F1: -11,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: -3.7,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: -1.6,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 240,
-  ash: 48,
-  OM: 952,
-  OMD: 0.68,
-  ME: 11.26,
-  NEL: 6.69,
-  CP: 249,
-  uCP: 188,
-  RNB: 10,
-  CPD: 0.82,
-  EE: 85,
-  EED: 0.92,
-  CF: 160,
-  CFD: 0.54,
-  ADF: 255,
-  NDF: 570,
-  sugar: 6,
-  starch: 20,
-  Ca: 3.5,
-  P: 5.8,
-  Na: 1.5,
-  Mg: 2.3,
-  K: 0.8
+  DM: 300,
+  ash: 75,
+  OM: 925,
+  OMD: 0.72,
+  CP: 109,
+  CPD: 0.68,
+  EE: 29,
+  EED: 0.67,
+  CF: 328,
+  CFD: 0.75,
+  NFE: 459,
+  NFED: 0.71,
+  NDF: 630,
+  starch: 0,
+  sugar: 73
 },
 {
   id: 13,
-  type: 'concentrate',
-  name: 'Corn-cob-mix',
-  name_de: 'CCM',
-  delta_F1: 0,
+  type: 'fresh',
+  name: 'Grass-clover, 1st growth, budding stage',
+  name_de: 'Rotklee-Gras-Gemenge, 1. Aufwuchs, in der Knospe',
+  delta_F1: -11,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 1,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 4.1,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 600,
-  ash: 21,
-  OM: 979,
-  OMD: 0.84,
-  ME: 12.78,
-  NEL: 7.99,
-  CP: 100,
-  uCP: 158,
-  RNB: -9,
-  CPD: 0.69,
-  EE: 45,
-  EED: 0.8,
-  CF: 55,
-  CFD: 0.42,
-  ADF: 64,
-  NDF: 165,
-  sugar: 4,
-  starch: 630,
-  Ca: 0.4,
-  P: 3.5,
-  Na: 0.2,
-  Mg: 1.3,
-  K: 4
+  DM: 170,
+  ash: 102,
+  OM: 898,
+  OMD: 0.75,
+  CP: 178,
+  CPD: 0.74,
+  EE: 32,
+  EED: 0.6,
+  CF: 223,
+  CFD: 0.71,
+  NFE: 465,
+  NFED: 0.79,
+  NDF: 447,
+  starch: 0,
+  sugar: 30
 },
 {
   id: 14,
-  type: 'silage',
-  name: 'Faba bean, whole plant silage',
-  name_de: 'GPS, Ackerbohne',
+  type: 'fresh',
+  name: 'Grass-clover, 1st growth, beginning of bloom',
+  name_de: 'Rotklee-Gras-Gemenge, 1. Aufwuchs, Beginn Blüte',
   delta_F1: -11,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 1,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 4.1,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 350,
-  ash: 81,
-  OM: 924,
-  OMD: 0.68,
-  ME: 9.67,
-  NEL: 5.69,
-  CP: 180,
-  uCP: 133,
-  RNB: 8,
-  CPD: 0.69,
-  EE: 20,
-  EED: 0.77,
-  CF: 280,
-  CFD: 0.48,
-  ADF: 364,
-  NDF: 616,
-  sugar: 30,
-  starch: 120,
-  Ca: 10,
-  P: 3.6,
-  Na: 2,
-  Mg: 3.3,
-  K: 20
+  DM: 200,
+  ash: 97,
+  OM: 903,
+  OMD: 0.72,
+  CP: 155,
+  CPD: 0.66,
+  EE: 30,
+  EED: 0.45,
+  CF: 259,
+  CFD: 0.69,
+  NFE: 459,
+  NFED: 0.76,
+  NDF: 476,
+  starch: 0,
+  sugar: 35
 },
 {
   id: 15,
-  type: 'silage',
-  name: 'Barley, whole plant silage',
-  name_de: 'GPS, Gerste (50% Kornanteil)',
+  type: 'fresh',
+  name: 'Grass-clover, 1st growth, end of bloom',
+  name_de: 'Rotklee-Gras-Gemenge, 1. Aufwuchs, verblüht',
   delta_F1: -11,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 1,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 4.1,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 450,
-  ash: 95,
-  OM: 905,
-  OMD: 0.68,
-  ME: 9.6,
-  NEL: 5.7,
-  CP: 97,
-  uCP: 121,
-  RNB: -4,
-  CPD: 0.64,
-  EE: 20,
-  EED: 0.69,
-  CF: 215,
-  CFD: 0.69,
-  ADF: 295,
-  NDF: 510,
-  sugar: 30,
-  starch: 240,
-  Ca: 2.9,
-  P: 2.9,
-  Na: 0.4,
-  Mg: 1.1,
-  K: 14
+  DM: 200,
+  ash: 84,
+  OM: 916,
+  OMD: 0.61,
+  CP: 115,
+  CPD: 0.65,
+  EE: 30,
+  EED: 0.66,
+  CF: 333,
+  CFD: 0.53,
+  NFE: 438,
+  NFED: 0.66,
+  NDF: 508,
+  starch: 0,
+  sugar: 41
 },
 {
   id: 16,
-  type: 'silage',
-  name: 'Wheat, whole plant silage',
-  name_de: 'GPS, Weizen (50% Kornanteil)',
+  type: 'fresh',
+  name: 'Grass-clover, regrowth, budding stage',
+  name_de: 'Rotklee-Gras-Gemenge, 2. Aufwuchs, in der Knospe',
   delta_F1: -11,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 1,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 4.1,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 450,
-  ash: 60,
-  OM: 940,
-  OMD: 0.65,
-  ME: 9.3,
-  NEL: 5.5,
-  CP: 93,
-  uCP: 117,
-  RNB: -4,
-  CPD: 0.63,
-  EE: 20,
-  EED: 0.68,
-  CF: 215,
-  CFD: 0.47,
-  ADF: 290,
-  NDF: 345,
-  sugar: 30,
-  starch: 245,
-  Ca: 2.7,
-  P: 2.7,
-  Na: 0.2,
-  Mg: 1.1,
-  K: 13
+  DM: 210,
+  ash: 105,
+  OM: 895,
+  OMD: 0.72,
+  CP: 191,
+  CPD: 0.72,
+  EE: 34,
+  EED: 0.6,
+  CF: 223,
+  CFD: 0.69,
+  NFE: 447,
+  NFED: 0.74,
+  NDF: 429,
+  starch: 0,
+  sugar: 40
 },
 {
   id: 17,
-  type: 'grasssilage',
-  name: 'Grass silage, 1st cut, good quality',
-  name_de: 'Grassilage, 1. S., BW gut',
-  delta_F1: 0,
+  type: 'fresh',
+  name: 'Grass-clover, regrowth, beginning of bloom',
+  name_de: 'Rotklee-Gras-Gemenge, 2. Aufwuchs, Beginn Blüte',
+  delta_F1: -11,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: -1,
-  delta_S2: 2,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 1,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 4.1,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 340,
-  ash: 111,
-  OM: 889,
-  OMD: 0.79,
-  ME: 10.8,
-  NEL: 6.5,
-  CP: 176,
-  uCP: 145,
-  RNB: 5,
-  CPD: 0.8,
-  EE: 40,
-  EED: 0.55,
-  CF: 210,
-  CFD: 0.8,
-  ADF: 250,
-  NDF: 390,
-  sugar: 81,
+  DM: 240,
+  ash: 105,
+  OM: 895,
+  OMD: 0.67,
+  CP: 172,
+  CPD: 0.67,
+  EE: 29,
+  EED: 0.64,
+  CF: 258,
+  CFD: 0.59,
+  NFE: 436,
+  NFED: 0.72,
+  NDF: 476,
   starch: 0,
-  Ca: 7.4,
-  P: 3.6,
-  Na: 0.5,
-  Mg: 2.1,
-  K: 28
+  sugar: 45
 },
 {
   id: 18,
-  type: 'grasssilage',
-  name: 'Grass silage, 1st cut, medium quality',
-  name_de: 'Grassilage, 1. S., BW mittel',
+  type: 'freshmaize',
+  name: 'Maize, fresh whole plant, milk stage, 25-35% cobs',
+  name_de: 'Mais, frische Ganzpflanze, Milchreife, 25-35 % Kolbenanteil',
   delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: -1,
-  delta_S2: 2,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 340,
-  ash: 106,
-  OM: 891,
-  OMD: 0.71,
-  ME: 10.2,
-  NEL: 6.1,
-  CP: 155,
-  uCP: 135,
-  RNB: 3,
-  CPD: 0.67,
-  EE: 40,
-  EED: 0.68,
-  CF: 240,
-  CFD: 0.74,
-  ADF: 280,
-  NDF: 430,
-  sugar: 48,
-  starch: 0,
-  Ca: 7.4,
-  P: 3.6,
-  Na: 0.5,
-  Mg: 2.1,
-  K: 28
+  DM: 210,
+  ash: 55,
+  OM: 945,
+  OMD: 0.75,
+  CP: 90,
+  CPD: 0.64,
+  EE: 21,
+  EED: 0.75,
+  CF: 223,
+  CFD: 0.66,
+  NFE: 611,
+  NFED: 0.8,
+  NDF: 496,
+  starch: 120,
+  sugar: 137
 },
 {
   id: 19,
   type: 'grasssilage',
-  name: 'Grass silage, 1st cut, low quality',
-  name_de: 'Grassilage, 1. S., BW gering',
+  name: 'Grass silage, 1st cut of 4 or more, heading stage',
+  name_de: 'Grassilage, 4+ Nutzungen, grasreich, 1. Schnitt, Beginn Rispenschieben',
   delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: -1,
-  delta_S2: 2,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: -1.4,
+  delta_S2_QIL: 1.6,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: -1.9,
+  delta_S2_QIB: 1.9,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 340,
-  ash: 109,
-  OM: 894,
-  OMD: 0.74,
-  ME: 9.6,
-  NEL: 5.7,
-  CP: 134,
-  uCP: 125,
-  RNB: 1,
-  CPD: 0.73,
-  EE: 40,
-  EED: 0.77,
-  CF: 270,
-  CFD: 0.78,
-  ADF: 310,
-  NDF: 480,
-  sugar: 15,
+  DM: 350,
+  ash: 111,
+  OM: 889,
+  OMD: 0.79,
+  CP: 184,
+  CPD: 0.8,
+  EE: 42,
+  EED: 0.55,
+  CF: 214,
+  CFD: 0.8,
+  NFE: 449,
+  NFED: 0.79,
+  NDF: 412,
   starch: 0,
-  Ca: 7.4,
-  P: 3.6,
-  Na: 0.5,
-  Mg: 2.1,
-  K: 28
+  sugar: 41
 },
 {
   id: 20,
   type: 'grasssilage',
-  name: 'Grass silage, 2nd cut, good quality',
-  name_de: 'Grassilage, 2. S., BW gut',
+  name: 'Grass silage, 1st cut of 4 or more, full ear emergence',
+  name_de: 'Grassilage, 4+ Nutzungen, grasreich, 1. Schnitt, volles Rispenschieben',
   delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: -1,
-  delta_S2: 2,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: -1.4,
+  delta_S2_QIL: 1.6,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: -1.9,
+  delta_S2_QIB: 1.9,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 380,
-  ash: 143,
-  OM: 857,
-  OMD: 0.73,
-  ME: 10.7,
-  NEL: 6.3,
-  CP: 173,
-  uCP: 143,
-  RNB: 5,
-  CPD: 0.71,
-  EE: 40,
-  EED: 0.62,
-  CF: 210,
-  CFD: 0.77,
-  ADF: 260,
-  NDF: 390,
-  sugar: 85,
+  DM: 350,
+  ash: 106,
+  OM: 894,
+  OMD: 0.71,
+  CP: 167,
+  CPD: 0.67,
+  EE: 41,
+  EED: 0.68,
+  CF: 247,
+  CFD: 0.74,
+  NFE: 439,
+  NFED: 0.71,
+  NDF: 476,
   starch: 0,
-  Ca: 9.2,
-  P: 3.7,
-  Na: 0.7,
-  Mg: 2.6,
-  K: 26.2
+  sugar: 41
 },
 {
   id: 21,
   type: 'grasssilage',
-  name: 'Grass silage, 2nd cut, medium quality',
-  name_de: 'Grassilage, 2. S., BW mittel',
+  name: 'Grass silage, 1st cut of 4 or more, beginning of bloom',
+  name_de: 'Grassilage, 4+ Nutzungen, grasreich, 1. Schnitt, Beginn Blüte',
   delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: -1,
-  delta_S2: 2,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: -1.4,
+  delta_S2_QIL: 1.6,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: -1.9,
+  delta_S2_QIB: 1.9,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 380,
-  ash: 113,
-  OM: 885,
-  OMD: 0.7,
-  ME: 10.2,
-  NEL: 6,
-  CP: 153,
-  uCP: 135,
-  RNB: 3,
-  CPD: 0.66,
-  EE: 40,
-  EED: 0.58,
-  CF: 240,
-  CFD: 0.74,
-  ADF: 280,
-  NDF: 430,
-  sugar: 53,
+  DM: 350,
+  ash: 109,
+  OM: 891,
+  OMD: 0.74,
+  CP: 155,
+  CPD: 0.73,
+  EE: 38,
+  EED: 0.77,
+  CF: 276,
+  CFD: 0.78,
+  NFE: 422,
+  NFED: 0.71,
+  NDF: 549,
   starch: 0,
-  Ca: 9.2,
-  P: 3.7,
-  Na: 0.7,
-  Mg: 2.6,
-  K: 26.2
+  sugar: 41
 },
 {
   id: 22,
   type: 'grasssilage',
-  name: 'Grass silage, 2nd cut, low quality',
-  name_de: 'Grassilage, 2. S., BW gering',
+  name: 'Grass silage, 2nd cut of 4 or more, <4 weeks',
+  name_de: 'Grassilage, 4+ Nutzungen, grasreich, 2. Aufwuchs, <4 Wochen',
   delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: -1,
-  delta_S2: 2,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: -1.4,
+  delta_S2_QIL: 1.6,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: -1.9,
+  delta_S2_QIB: 1.9,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 380,
-  ash: 115,
-  OM: 887,
-  OMD: 0.72,
-  ME: 9.7,
-  NEL: 5.6,
-  CP: 133,
-  uCP: 126,
-  RNB: 1,
-  CPD: 0.68,
-  EE: 40,
-  EED: 0.6,
-  CF: 260,
-  CFD: 0.75,
-  ADF: 310,
-  NDF: 470,
-  sugar: 21,
+  DM: 350,
+  ash: 143,
+  OM: 857,
+  OMD: 0.73,
+  CP: 186,
+  CPD: 0.71,
+  EE: 42,
+  EED: 0.62,
+  CF: 213,
+  CFD: 0.77,
+  NFE: 416,
+  NFED: 0.73,
+  NDF: 410,
   starch: 0,
-  Ca: 9.2,
-  P: 3.7,
-  Na: 0.7,
-  Mg: 2.6,
-  K: 26.2
+  sugar: 27
 },
 {
   id: 23,
   type: 'grasssilage',
-  name: 'Grass-clover, 1st growth, early mature',
-  name_de: 'Kleegras, 1. Aufwuchs - in der Knospe',
+  name: 'Grass silage, 2nd cut of 4 or more, 4-6 weeks',
+  name_de: 'Grassilage, 4+ Nutzungen, grasreich, 2. Aufwuchs, 4-6  Wochen',
   delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 3,
-  delta_S2: 2,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: -1.4,
+  delta_S2_QIL: 1.6,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: -1.9,
+  delta_S2_QIB: 1.9,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 350,
-  ash: 92,
-  OM: 908,
-  OMD: 0.76,
-  ME: 9.94,
-  NEL: 5.9,
-  CP: 175,
-  uCP: 135,
-  RNB: 6,
-  CPD: 0.74,
-  EE: 40,
-  EED: 0.64,
-  CF: 260,
-  CFD: 0.76,
-  ADF: 273,
-  NDF: 598,
-  sugar: 20,
+  ash: 113,
+  OM: 887,
+  OMD: 0.7,
+  CP: 161,
+  CPD: 0.66,
+  EE: 42,
+  EED: 0.58,
+  CF: 246,
+  CFD: 0.74,
+  NFE: 438,
+  NFED: 0.71,
+  NDF: 442,
   starch: 0,
-  Ca: 7.9,
-  P: 3.7,
-  Na: 0.6,
-  Mg: 2.3,
-  K: 33
+  sugar: 27
 },
 {
   id: 24,
   type: 'grasssilage',
-  name: 'Grass-clover, 1st growth, flowering',
-  name_de: 'Kleegras, 1. Aufwuchs - in der Blüte',
+  name: 'Grass silage, 2nd cut of 4 or more, 7-9 weeks',
+  name_de: 'Grassilage, 4+ Nutzungen, grasreich, 2. Aufwuchs, 7-9 Wochen',
   delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 3,
-  delta_S2: 2,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: -1.4,
+  delta_S2_QIL: 1.6,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: -1.9,
+  delta_S2_QIB: 1.9,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 350,
-  ash: 110,
-  OM: 890,
-  OMD: 0.73,
-  ME: 9.51,
-  NEL: 5.59,
-  CP: 154,
-  uCP: 132,
-  RNB: 4,
-  CPD: 0.69,
-  EE: 40,
-  EED: 0.61,
-  CF: 300,
-  CFD: 0.76,
-  ADF: 315,
-  NDF: 690,
-  sugar: 10,
+  ash: 115,
+  OM: 885,
+  OMD: 0.72,
+  CP: 136,
+  CPD: 0.68,
+  EE: 37,
+  EED: 0.6,
+  CF: 295,
+  CFD: 0.75,
+  NFE: 417,
+  NFED: 0.73,
+  NDF: 532,
   starch: 0,
-  Ca: 8,
-  P: 3.7,
-  Na: 0.6,
-  Mg: 2.2,
-  K: 30
+  sugar: 26
 },
 {
   id: 25,
   type: 'grasssilage',
-  name: 'Grass-clover, regrowth, early mature',
-  name_de: 'Kleegras, Folgeaufwuchs - in der Knospe',
+  name: 'Lucerne, 1st cut, budding stage',
+  name_de: 'Luzerne, 1. Aufwuchs, in der Knospe',
   delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 3,
-  delta_S2: 2,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 1,
-  DM: 350,
-  ash: 114,
-  OM: 875,
-  OMD: 0.75,
-  ME: 9.61,
-  NEL: 5.68,
-  CP: 180,
-  uCP: 133,
-  RNB: 8,
-  CPD: 0.74,
-  EE: 35,
-  EED: 0.7,
-  CF: 245,
-  CFD: 0.8,
-  ADF: 257,
-  NDF: 564,
-  sugar: 20,
-  starch: 0,
-  Ca: 8,
-  P: 3.7,
-  Na: 0.8,
-  Mg: 2.7,
-  K: 28
-},
-{
-  id: 26,
-  type: 'grasssilage',
-  name: 'Grass-clover, regrowth, mid mature',
-  name_de: 'Kleegras, Folgeaufwuchs - in der Blüte',
-  delta_F1: 0,
-  delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 3,
-  delta_S2: 2,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 1,
-  DM: 350,
-  ash: 131,
-  OM: 869,
-  OMD: 0.67,
-  ME: 9.15,
-  NEL: 5.36,
-  CP: 173,
-  uCP: 125,
-  RNB: 8,
-  CPD: 0.65,
-  EE: 42,
-  EED: 0.65,
-  CF: 261,
-  CFD: 0.64,
-  ADF: 275,
-  NDF: 600,
-  sugar: 20,
-  starch: 0,
-  Ca: 8,
-  P: 3.7,
-  Na: 0.8,
-  Mg: 2.7,
-  K: NaN
-},
-{
-  id: 27,
-  type: 'grasssilage',
-  name: 'Lucerne, early mature',
-  name_de: 'Luzerne, i.d. Knospe',
-  delta_F1: 0,
-  delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 3,
-  delta_S2: 2,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 2.8,
+  delta_S2_QIL: 1.6,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 2.8,
+  delta_S2_QIB: 1.9,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 350,
   ash: 118,
   OM: 882,
   OMD: 0.66,
-  ME: 9.27,
-  NEL: 5.45,
-  CP: 190,
-  uCP: 130,
-  RNB: 10,
+  CP: 207,
   CPD: 0.73,
-  EE: 40,
+  EE: 39,
   EED: 0.57,
-  CF: 240,
+  CF: 254,
   CFD: 0.54,
-  ADF: 276,
-  NDF: 360,
-  sugar: 20,
+  NFE: 382,
+  NFED: 0.72,
+  NDF: 410,
   starch: 0,
-  Ca: 12,
-  P: 3.7,
-  Na: 0.5,
-  Mg: 2.6,
-  K: 32
+  sugar: 1
 },
 {
-  id: 28,
+  id: 26,
   type: 'grasssilage',
-  name: 'Lucerne, mid mature',
-  name_de: 'Luzerne, Beginn Blüte',
+  name: 'Lucerne, 1st cut, beginning of bloom',
+  name_de: 'Luzerne, 1. Aufwuchs, Beginn Blüte',
   delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 3,
-  delta_S2: 2,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 2.8,
+  delta_S2_QIL: 1.6,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 2.8,
+  delta_S2_QIB: 1.9,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 350,
   ash: 125,
   OM: 875,
   OMD: 0.63,
-  ME: 8.86,
-  NEL: 5.15,
-  CP: 175,
-  uCP: 130,
-  RNB: 7,
+  CP: 179,
   CPD: 0.69,
-  EE: 40,
+  EE: 37,
   EED: 0.57,
-  CF: 280,
+  CF: 294,
   CFD: 0.54,
-  ADF: 322,
-  NDF: 420,
-  sugar: 15,
+  NFE: 365,
+  NFED: 0.68,
+  NDF: 472,
   starch: 0,
-  Ca: 13,
-  P: 3.5,
-  Na: 0.5,
-  Mg: 2.2,
-  K: 29
+  sugar: 1
+},
+{
+  id: 27,
+  type: 'grasssilage',
+  name: 'Grass-clover, 1st cut, budding stage',
+  name_de: 'Rotklee-Gras-Gemenge, 1. Aufwuchs, in der Knospe',
+  delta_F1: 0,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 2.8,
+  delta_S2_QIL: 1.6,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 2.8,
+  delta_S2_QIB: 1.9,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 350,
+  ash: 92,
+  OM: 908,
+  OMD: 0.76,
+  CP: 173,
+  CPD: 0.74,
+  EE: 45,
+  EED: 0.64,
+  CF: 246,
+  CFD: 0.76,
+  NFE: 444,
+  NFED: 0.79,
+  NDF: 432,
+  starch: 0,
+  sugar: 20
+},
+{
+  id: 28,
+  type: 'grasssilage',
+  name: 'Grass-clover, 1st cut, beginning of bloom',
+  name_de: 'Rotklee-Gras-Gemenge, 1. Aufwuchs, Beginn Blüte',
+  delta_F1: 0,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 2.8,
+  delta_S2_QIL: 1.6,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 2.8,
+  delta_S2_QIB: 1.9,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 350,
+  ash: 110,
+  OM: 890,
+  OMD: 0.73,
+  CP: 165,
+  CPD: 0.69,
+  EE: 53,
+  EED: 0.61,
+  CF: 278,
+  CFD: 0.76,
+  NFE: 394,
+  NFED: 0.74,
+  NDF: 473,
+  starch: 0,
+  sugar: 10
 },
 {
   id: 29,
-  type: 'maizesilage',
-  name: 'Maize silage, whole plant, good quality',
-  name_de: 'Maissilage, BW gut',
+  type: 'grasssilage',
+  name: 'Grass-clover, 1st cut, end of bloom',
+  name_de: 'Rotklee-Gras-Gemenge, 1. Aufwuchs, verblüht',
   delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 2.8,
+  delta_S2_QIL: 1.6,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 2.8,
+  delta_S2_QIB: 1.9,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 370,
-  ash: 55,
-  OM: 945,
-  OMD: 0.74,
-  ME: 11.7,
-  NEL: 7.2,
-  CP: 71,
-  uCP: 138,
-  RNB: -11,
-  CPD: 0.6,
-  EE: 30,
-  EED: 0.76,
-  CF: 160,
-  CFD: 0.68,
-  ADF: 180,
-  NDF: 330,
-  sugar: 10,
-  starch: 370,
-  Ca: 2,
-  P: 2.3,
-  Na: 0.1,
-  Mg: 1.2,
-  K: 10.7
+  DM: 350,
+  ash: 115,
+  OM: 884,
+  OMD: 0.67,
+  CP: 118,
+  CPD: 0.69,
+  EE: 46,
+  EED: 0.73,
+  CF: 368,
+  CFD: 0.7,
+  NFE: 352,
+  NFED: 0.63,
+  NDF: 585,
+  starch: 0,
+  sugar: 5
 },
 {
   id: 30,
-  type: 'maizesilage',
-  name: 'Maize silage, whole plant, medium quality',
-  name_de: 'Maissilage, BW mittel',
+  type: 'grasssilage',
+  name: 'Grass-clover, regrowth, budding stage',
+  name_de: 'Rotklee-Gras-Gemenge, 2. Aufwuchs, in der Knospe',
   delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 2.8,
+  delta_S2_QIL: 1.6,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 2.8,
+  delta_S2_QIB: 1.9,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 330,
-  ash: 52,
-  OM: 948,
-  OMD: 0.72,
-  ME: 11.3,
-  NEL: 6.9,
-  CP: 78,
-  uCP: 136,
-  RNB: -9,
-  CPD: 0.58,
-  EE: 30,
-  EED: 0.79,
-  CF: 180,
-  CFD: 0.63,
-  ADF: 200,
-  NDF: 360,
-  sugar: 10,
-  starch: 330,
-  Ca: 2,
-  P: 2.3,
-  Na: 0.1,
-  Mg: 1.2,
-  K: 10.7
+  DM: 350,
+  ash: 114,
+  OM: 886,
+  OMD: 0.75,
+  CP: 190,
+  CPD: 0.74,
+  EE: 53,
+  EED: 0.7,
+  CF: 246,
+  CFD: 0.8,
+  NFE: 397,
+  NFED: 0.75,
+  NDF: 432,
+  starch: 0,
+  sugar: 20
 },
 {
   id: 31,
-  type: 'maizesilage',
-  name: 'Maize silage, whole plant, low quality',
-  name_de: 'Maissilage, BW gering',
+  type: 'grasssilage',
+  name: 'Grass-clover, regrowth, beginning of bloom',
+  name_de: 'Rotklee-Gras-Gemenge, 2. Aufwuchs, Beginn Blüte',
   delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 2.8,
+  delta_S2_QIL: 1.6,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 2.8,
+  delta_S2_QIB: 1.9,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 300,
-  ash: 45,
-  OM: 945,
-  OMD: 0.73,
-  ME: 11,
-  NEL: 6.6,
-  CP: 85,
-  uCP: 134,
-  RNB: -8,
-  CPD: 0.56,
-  EE: 30,
-  EED: 0.79,
-  CF: 200,
-  CFD: 0.63,
-  ADF: 230,
-  NDF: 400,
-  sugar: 10,
-  starch: 280,
-  Ca: 2,
-  P: 2.3,
-  Na: 0.1,
-  Mg: 1.2,
-  K: 10.7
+  DM: 350,
+  ash: 131,
+  OM: 869,
+  OMD: 0.67,
+  CP: 173,
+  CPD: 0.65,
+  EE: 42,
+  EED: 0.65,
+  CF: 261,
+  CFD: 0.64,
+  NFE: 393,
+  NFED: 0.69,
+  NDF: 441,
+  starch: 0,
+  sugar: 20
 },
 {
   id: 32,
-  type: 'silage',
-  name: 'Sugar beets, pressed pulp',
+  type: 'maizesilage',
+  name: 'Maize silage, milk stage, medium corncob proportion',
+  name_de: 'Maissilage, Milchreife, Kolbenanteil mittel',
+  delta_F1: 0,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 210,
+  ash: 59,
+  OM: 941,
+  OMD: 0.7,
+  CP: 93,
+  CPD: 0.58,
+  EE: 31,
+  EED: 0.69,
+  CF: 233,
+  CFD: 0.65,
+  NFE: 584,
+  NFED: 0.74,
+  NDF: 477,
+  starch: 131,
+  sugar: 9
+},
+{
+  id: 33,
+  type: 'maizesilage',
+  name: 'Maize silage, dough stage, medium corncob proportion',
+  name_de: 'Maissilage, Teigreife, mittlerer Körneranteil',
+  delta_F1: 0,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 270,
+  ash: 52,
+  OM: 948,
+  OMD: 0.72,
+  CP: 88,
+  CPD: 0.58,
+  EE: 33,
+  EED: 0.79,
+  CF: 212,
+  CFD: 0.63,
+  NFE: 615,
+  NFED: 0.76,
+  NDF: 444,
+  starch: 203,
+  sugar: 13
+},
+{
+  id: 34,
+  type: 'maizesilage',
+  name: 'Maize silage, end of dough stage, high corncob proportion',
+  name_de: 'Maissilage, Ende der Teigreife, Kolbenanteil hoch',
+  delta_F1: 0,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 380,
+  ash: 43,
+  OM: 957,
+  OMD: 0.75,
+  CP: 80,
+  CPD: 0.61,
+  EE: 34,
+  EED: 0.74,
+  CF: 177,
+  CFD: 0.63,
+  NFE: 666,
+  NFED: 0.8,
+  NDF: 416,
+  starch: 345,
+  sugar: 10
+},
+{
+  id: 35,
+  type: 'maizesilage',
+  name: 'Maize corncobs without husks (Corn-Cob-Mix)',
+  name_de: 'Maiskolben ohne Hüllblätter (CCM) siliert',
+  delta_F1: 0,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 600,
+  ash: 21,
+  OM: 979,
+  OMD: 0.84,
+  CP: 105,
+  CPD: 0.69,
+  EE: 43,
+  EED: 0.8,
+  CF: 52,
+  CFD: 0.42,
+  NFE: 779,
+  NFED: 0.93,
+  NDF: 152,
+  starch: 634,
+  sugar: 4
+},
+{
+  id: 36,
+  type: 'wholecropsilage',
+  name: 'Faba bean, whole plant silage',
+  name_de: 'Ackerbohnensilage, Gelbreife',
+  delta_F1: -11,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 300,
+  ash: 81,
+  OM: 919,
+  OMD: 0.68,
+  CP: 180,
+  CPD: 0.69,
+  EE: 23,
+  EED: 0.77,
+  CF: 302,
+  CFD: 0.48,
+  NFE: 414,
+  NFED: 0.82,
+  NDF: 437,
+  starch: 129,
+  sugar: 30
+},
+{
+  id: 37,
+  type: 'wholecropsilage',
+  name: 'Barley, whole plant silage, ear emergence',
+  name_de: 'Grünroggensilage, Ährenschieben',
+  delta_F1: -11,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 190,
+  ash: 101,
+  OM: 899,
+  OMD: 0.73,
+  CP: 136,
+  CPD: 0.69,
+  EE: 38,
+  EED: 0.68,
+  CF: 299,
+  CFD: 0.76,
+  NFE: 426,
+  NFED: 0.71,
+  NDF: 415,
+  starch: 0,
+  sugar: 2
+},
+{
+  id: 38,
+  type: 'wholecropsilage',
+  name: 'Oat, whole plant silage, ear emergence',
+  name_de: 'Grünhafersilage, Ährenschieben',
+  delta_F1: -11,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 170,
+  ash: 89,
+  OM: 911,
+  OMD: 0.71,
+  CP: 103,
+  CPD: 0.65,
+  EE: 38,
+  EED: 0.76,
+  CF: 285,
+  CFD: 0.69,
+  NFE: 485,
+  NFED: 0.74,
+  NDF: 469,
+  starch: 0,
+  sugar: 2
+},
+{
+  id: 39,
+  type: 'wholecropsilage',
+  name: 'Oat, whole plant silage, dough stage, 33% grains',
+  name_de: 'Grünhafersilage, Teigreife, Körneranteil 33%',
+  delta_F1: -11,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 300,
+  ash: 81,
+  OM: 919,
+  OMD: 0.59,
+  CP: 92,
+  CPD: 0.56,
+  EE: 34,
+  EED: 0.66,
+  CF: 312,
+  CFD: 0.59,
+  NFE: 481,
+  NFED: 0.6,
+  NDF: 450,
+  starch: 104,
+  sugar: 5
+},
+{
+  id: 40,
+  type: 'wholecropsilage',
+  name: 'Sugar beets, ensiled pressed pulp',
   name_de: 'Preßschnitzel',
   delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 220,
   ash: 71,
   OM: 929,
   OMD: 0.86,
-  ME: 11.85,
-  NEL: 7.38,
-  CP: 113,
-  uCP: 152,
-  RNB: -6,
+  CP: 111,
   CPD: 0.62,
-  EE: 10,
+  EE: 11,
   EED: 0.31,
-  CF: 210,
+  CF: 208,
   CFD: 0.87,
-  ADF: 275,
-  NDF: 420,
-  sugar: 17,
+  NFE: 599,
+  NFED: 0.91,
+  NDF: 482,
   starch: 0,
-  Ca: 6.9,
-  P: 0.8,
-  Na: 0.4,
-  Mg: 1.5,
-  K: 4.5
-},
-{
-  id: 33,
-  type: 'silage',
-  name: 'Rye, whole plant, immature to early mature',
-  name_de: 'Roggen, Beginn Ährenschieben',
-  delta_F1: -11,
-  delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 1,
-  DM: 250,
-  ash: 106,
-  OM: 894,
-  OMD: 0.79,
-  ME: 10.62,
-  NEL: 6.42,
-  CP: 150,
-  uCP: 139,
-  RNB: 2,
-  CPD: 0.79,
-  EE: 45,
-  EED: 0.79,
-  CF: 260,
-  CFD: 0.78,
-  ADF: 312,
-  NDF: 494,
-  sugar: 2,
-  starch: 0,
-  Ca: 4.5,
-  P: 4.2,
-  Na: 0.4,
-  Mg: 1.6,
-  K: 30
-},
-{
-  id: 34,
-  type: 'silage',
-  name: 'Sugar beet, leaves, clean',
-  name_de: 'Zuckerrübenblatt, sauber',
-  delta_F1: 0,
-  delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 1,
-  DM: 180,
-  ash: 171,
-  OM: 829,
-  OMD: 0.76,
-  ME: 9.83,
-  NEL: 5.98,
-  CP: 150,
-  uCP: 130,
-  RNB: 3,
-  CPD: 0.71,
-  EE: 30,
-  EED: 0.51,
-  CF: 145,
-  CFD: 0.72,
-  ADF: 0,
-  NDF: 0,
-  sugar: 16,
-  starch: 0,
-  Ca: 13.1,
-  P: 2.5,
-  Na: 5.6,
-  Mg: 1.1,
-  K: 26.3
-},
-{
-  id: 35,
-  type: 'straw',
-  name: 'Barley, straw',
-  name_de: 'Gerste, Stroh',
-  delta_F1: 0,
-  delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 1,
-  DM: 860,
-  ash: 59,
-  OM: 941,
-  OMD: 0.5,
-  ME: 6.62,
-  NEL: 3.65,
-  CP: 45,
-  uCP: 80,
-  RNB: -6,
-  CPD: 0.1,
-  EE: 15,
-  EED: 0.41,
-  CF: 435,
-  CFD: 0.55,
-  ADF: 479,
-  NDF: 783,
-  sugar: 7,
-  starch: 0,
-  Ca: 5,
-  P: 0.8,
-  Na: 2,
-  Mg: 0.9,
-  K: 17
-},
-{
-  id: 36,
-  type: 'straw',
-  name: 'Oats, straw',
-  name_de: 'Hafer, Stroh',
-  delta_F1: 0,
-  delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 1,
-  DM: 860,
-  ash: 66,
-  OM: 934,
-  OMD: 0.5,
-  ME: 6.65,
-  NEL: 3.66,
-  CP: 36,
-  uCP: 76,
-  RNB: -6,
-  CPD: 0.3,
-  EE: 15,
-  EED: 0.34,
-  CF: 440,
-  CFD: 0.58,
-  ADF: 484,
-  NDF: 792,
-  sugar: 14,
-  starch: 0,
-  Ca: 4,
-  P: 1.4,
-  Na: 2,
-  Mg: 1,
-  K: 21
-},
-{
-  id: 37,
-  type: 'straw',
-  name: 'Wheat, straw',
-  name_de: 'Weizen, Stroh',
-  delta_F1: 0,
-  delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 1,
-  DM: 860,
-  ash: 78,
-  OM: 922,
-  OMD: 0.47,
-  ME: 6.24,
-  NEL: 3.42,
-  CP: 40,
-  uCP: 74,
-  RNB: -5,
-  CPD: 0.27,
-  EE: 15,
-  EED: 0.43,
-  CF: 430,
-  CFD: 0.56,
-  ADF: 473,
-  NDF: 774,
-  sugar: 8,
-  starch: 0,
-  Ca: 5.2,
-  P: 0.9,
-  Na: 1.7,
-  Mg: 0.9,
-  K: 18
-},
-{
-  id: 38,
-  type: 'hay',
-  name: 'Hay, 1st cut, good quality',
-  name_de: 'Heu, 1. S., BW gut',
-  delta_F1: 82,
-  delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 6,
-  eco: 1,
-  DM: 880,
-  ash: 78,
-  OM: 922,
-  OMD: 0.65,
-  ME: 9.4,
-  NEL: 5.5,
-  CP: 117,
-  uCP: 123,
-  RNB: -1,
-  CPD: 0.59,
-  EE: 30,
-  EED: 0.47,
-  CF: 280,
-  CFD: 0.65,
-  ADF: 322,
-  NDF: 588,
-  sugar: 80,
-  starch: 0,
-  Ca: 5.2,
-  P: 2.2,
-  Na: 0.6,
-  Mg: 1.9,
-  K: 20.2
-},
-{
-  id: 39,
-  type: 'hay',
-  name: 'Hay, 1st cut, medium quality',
-  name_de: 'Heu, 1. S., BW mittel',
-  delta_F1: 82,
-  delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 6,
-  eco: 1,
-  DM: 880,
-  ash: 78,
-  OM: 922,
-  OMD: 0.62,
-  ME: 8.7,
-  NEL: 5,
-  CP: 91,
-  uCP: 111,
-  RNB: -3,
-  CPD: 0.56,
-  EE: 25,
-  EED: 0.45,
-  CF: 310,
-  CFD: 0.63,
-  ADF: 357,
-  NDF: 651,
-  sugar: 60,
-  starch: 0,
-  Ca: 5.2,
-  P: 2.2,
-  Na: 0.6,
-  Mg: 1.9,
-  K: 20.2
-},
-{
-  id: 40,
-  type: 'hay',
-  name: 'Hay, 1st cut, low quality',
-  name_de: 'Heu, 1. S., BW gering',
-  delta_F1: 82,
-  delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 6,
-  eco: 1,
-  DM: 880,
-  ash: 77,
-  OM: 923,
-  OMD: 0.58,
-  ME: 8,
-  NEL: 4.5,
-  CP: 65,
-  uCP: 98,
-  RNB: -5,
-  CPD: 0.52,
-  EE: 20,
-  EED: 0.43,
-  CF: 340,
-  CFD: 0.6,
-  ADF: 391,
-  NDF: 714,
-  sugar: 40,
-  starch: 0,
-  Ca: 7.3,
-  P: 2.2,
-  Na: 0.6,
-  Mg: 1.9,
-  K: 20.2
+  sugar: 31
 },
 {
   id: 41,
-  type: 'hay',
-  name: 'Hay, 2nd cut, good quality',
-  name_de: 'Heu, 2. S., BW gut',
-  delta_F1: 82,
+  type: 'wholecropsilage',
+  name: 'Sugar beet, ensiled clean leaves',
+  name_de: 'Zuckerrübenblatt, sauber',
+  delta_F1: 0,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 6,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 880,
-  ash: 96,
-  OM: 904,
-  OMD: 0.7,
-  ME: 9.2,
-  NEL: 5.6,
-  CP: 125,
-  uCP: 123,
-  RNB: 0,
-  CPD: 0.65,
-  EE: 25,
-  EED: 0.5,
-  CF: 260,
-  CFD: 0.68,
-  ADF: 299,
-  NDF: 546,
-  sugar: 60,
+  DM: 160,
+  ash: 171,
+  OM: 829,
+  OMD: 0.76,
+  CP: 149,
+  CPD: 0.71,
+  EE: 34,
+  EED: 0.51,
+  CF: 159,
+  CFD: 0.72,
+  NFE: 487,
+  NFED: 0.8,
+  NDF: 506,
   starch: 0,
-  Ca: 7.3,
-  P: 3.3,
-  Na: 0.6,
-  Mg: 1.9,
-  K: 20.2
+  sugar: 16
 },
 {
   id: 42,
   type: 'hay',
-  name: 'Hay, 2nd cut, medium quality',
-  name_de: 'Heu, 2. S., BW mittel',
-  delta_F1: 82,
-  delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 6,
-  eco: 1,
-  DM: 880,
-  ash: 95,
-  OM: 905,
-  OMD: 0.66,
-  ME: 9.2,
-  NEL: 5.6,
-  CP: 125,
-  uCP: 123,
-  RNB: 0,
-  CPD: 0.59,
-  EE: 25,
-  EED: 0.46,
-  CF: 260,
-  CFD: 0.64,
-  ADF: 299,
-  NDF: 546,
-  sugar: 60,
-  starch: 0,
-  Ca: 7.3,
-  P: 3.3,
-  Na: 0.6,
-  Mg: 1.9,
-  K: 20.2
-},
-{
-  id: 43,
-  type: 'hay',
-  name: 'Hay, 2nd cut, low quality',
-  name_de: 'Heu, 2. S., BW gering',
-  delta_F1: 82,
-  delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 6,
-  eco: 1,
-  DM: 880,
-  ash: 97,
-  OM: 903,
-  OMD: 0.61,
-  ME: 8.5,
-  NEL: 5.2,
-  CP: 100,
-  uCP: 110,
-  RNB: -2,
-  CPD: 0.58,
-  EE: 25,
-  EED: 0.46,
-  CF: 290,
-  CFD: 0.64,
-  ADF: 334,
-  NDF: 609,
-  sugar: 60,
-  starch: 0,
-  Ca: 15,
-  P: 3.3,
-  Na: 0.6,
-  Mg: 1.9,
-  K: 20.2
-},
-{
-  id: 44,
-  type: 'hay',
-  name: 'Grass-clover, 1st growth, early mature',
-  name_de: 'Kleegras, 1. S., i. d. Knospe',
+  name: 'Grass-clover, 1st cut, budding stage',
+  name_de: 'Rotklee-Gras Gemenge, 1. Schnitt, in der Knospe',
   delta_F1: -11,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 3,
-  delta_H2: 6,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 2.6,
+  delta_H2_QIL: 5.5,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 3.4,
+  delta_H2_QIB: 5.2,
   eco: 1,
   DM: 860,
   ash: 94,
   OM: 906,
   OMD: 0.71,
-  ME: 10,
-  NEL: 5.9,
-  CP: 140,
-  uCP: 135,
-  RNB: 1,
+  CP: 136,
   CPD: 0.69,
-  EE: 25,
+  EE: 26,
   EED: 0.56,
   CF: 260,
   CFD: 0.7,
-  ADF: 273,
-  NDF: 598,
-  sugar: 30,
+  NFE: 484,
+  NFED: 0.73,
+  NDF: 533,
   starch: 0,
-  Ca: 15,
-  P: 2.5,
-  Na: 0.5,
-  Mg: 3.2,
-  K: 20
+  sugar: 30
 },
 {
-  id: 45,
+  id: 43,
   type: 'hay',
-  name: 'Grass-clover, mature',
-  name_de: 'Kleegras, Mitte-Ende Blüte',
+  name: 'Grass-clover, 1st cut, mid-bloom to end of bloom',
+  name_de: 'Rotklee-Gras Gemenge, 1. Schnitt, Mitte bis Ende der Blüte',
   delta_F1: -11,
   delta_C1: 0,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 3,
-  delta_H2: 6,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 2.6,
+  delta_H2_QIL: 5.5,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 3.4,
+  delta_H2_QIB: 5.2,
   eco: 1,
   DM: 860,
   ash: 83,
   OM: 917,
   OMD: 0.63,
-  ME: 8.7,
-  NEL: 5.1,
-  CP: 125,
-  uCP: 118,
-  RNB: 1,
+  CP: 124,
   CPD: 0.62,
-  EE: 25,
+  EE: 24,
   EED: 0.56,
-  CF: 340,
+  CF: 336,
   CFD: 0.58,
-  ADF: 357,
-  NDF: 782,
-  sugar: 25,
+  NFE: 433,
+  NFED: 0.67,
+  NDF: 689,
   starch: 0,
-  Ca: 3.4,
-  P: 2.5,
-  Na: 0.5,
-  Mg: 3.2,
-  K: 20
+  sugar: 25
+},
+{
+  id: 44,
+  type: 'hay',
+  name: 'Hay, 1st cut of 2 or 3, full ear emergence',
+  name_de: 'Heu, 2-3 Nutzungen, grasreich 1. Schnitt, volles Rispenschieben',
+  delta_F1: 82,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 5.5,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 5.2,
+  eco: 1,
+  DM: 860,
+  ash: 78,
+  OM: 922,
+  OMD: 0.65,
+  CP: 106,
+  CPD: 0.59,
+  EE: 24,
+  EED: 0.47,
+  CF: 294,
+  CFD: 0.65,
+  NFE: 498,
+  NFED: 0.68,
+  NDF: 600,
+  starch: 0,
+  sugar: 81
+},
+{
+  id: 45,
+  type: 'hay',
+  name: 'Hay, 1st cut of 2 or 3, beginning of bloom',
+  name_de: 'Heu, 2-3 Nutzungen, grasreich, 1. Schnitt, Beginn Blüte',
+  delta_F1: 82,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 5.5,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 5.2,
+  eco: 1,
+  DM: 860,
+  ash: 78,
+  OM: 922,
+  OMD: 0.62,
+  CP: 94,
+  CPD: 0.56,
+  EE: 22,
+  EED: 0.45,
+  CF: 324,
+  CFD: 0.63,
+  NFE: 482,
+  NFED: 0.63,
+  NDF: 619,
+  starch: 0,
+  sugar: 60
 },
 {
   id: 46,
-  type: 'concentrate',
-  name: 'Faba beans, grain',
-  name_de: 'Ackerbohnen',
-  delta_F1: 0,
-  delta_C1: -87,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  type: 'hay',
+  name: 'Hay, 1st cut of 2 or 3, mid-bloom to end of bloom',
+  name_de: 'Heu, 2-3 Nutzungen, grasreich, 1. Schnitt, Mitte bis Ende Blüte',
+  delta_F1: 82,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 5.5,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 5.2,
   eco: 1,
-  DM: 880,
-  ash: 39,
-  OM: 961,
-  OMD: 0.91,
-  ME: 13.57,
-  NEL: 8.58,
-  CP: 295,
-  uCP: 194,
-  RNB: 16,
-  CPD: 0.86,
-  EE: 15,
-  EED: 0.75,
-  CF: 90,
-  CFD: 0.86,
-  ADF: 126,
-  NDF: 171,
-  sugar: 40,
-  starch: 410,
-  Ca: 1.6,
-  P: 4.8,
-  Na: 0.2,
-  Mg: 1.4,
-  K: 12
+  DM: 860,
+  ash: 77,
+  OM: 923,
+  OMD: 0.58,
+  CP: 91,
+  CPD: 0.52,
+  EE: 21,
+  EED: 0.43,
+  CF: 356,
+  CFD: 0.6,
+  NFE: 455,
+  NFED: 0.58,
+  NDF: 654,
+  starch: 0,
+  sugar: 40
 },
 {
   id: 47,
-  type: 'concentrate',
-  name: 'Peas, grain',
-  name_de: 'Erbsen',
-  delta_F1: 0,
-  delta_C1: -87,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  type: 'hay',
+  name: 'Hay, 2nd cut of 2 or 3, <4 weeks',
+  name_de: 'Heu, 2-3 Nutzungen, grasreich, 2. Schnitt, <4 Wochen',
+  delta_F1: 82,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 5.5,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 5.2,
   eco: 1,
-  DM: 880,
-  ash: 34,
-  OM: 966,
-  OMD: 0.9,
-  ME: 13.44,
-  NEL: 8.52,
-  CP: 235,
-  uCP: 183,
-  RNB: 8,
-  CPD: 0.82,
-  EE: 15,
-  EED: 0.62,
-  CF: 65,
-  CFD: 0.78,
-  ADF: 98,
-  NDF: 202,
-  sugar: 60,
-  starch: 480,
-  Ca: 0.9,
-  P: 4.8,
-  Na: 0.3,
-  Mg: 1.3,
-  K: 11
+  DM: 860,
+  ash: 96,
+  OM: 904,
+  OMD: 0.7,
+  CP: 151,
+  CPD: 0.65,
+  EE: 31,
+  EED: 0.5,
+  CF: 251,
+  CFD: 0.68,
+  NFE: 471,
+  NFED: 0.73,
+  NDF: 548,
+  starch: 0,
+  sugar: 101
 },
 {
   id: 48,
+  type: 'hay',
+  name: 'Hay, 2nd cut of 2 or 3, 4-6 weeks',
+  name_de: 'Heu, 2-3 Nutzungen, grasreich, 2. Schnitt, 4-6 Wochen',
+  delta_F1: 82,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 5.5,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 5.2,
+  eco: 1,
+  DM: 860,
+  ash: 95,
+  OM: 905,
+  OMD: 0.66,
+  CP: 133,
+  CPD: 0.59,
+  EE: 30,
+  EED: 0.46,
+  CF: 284,
+  CFD: 0.64,
+  NFE: 458,
+  NFED: 0.69,
+  NDF: 582,
+  starch: 0,
+  sugar: 80
+},
+{
+  id: 49,
+  type: 'hay',
+  name: 'Hay, 2nd cut of 2 or 3, 7-9 weeks',
+  name_de: 'Heu, 2-3 Nutzungen, grasreich, 2. Schnitt, 7-9 Wochen',
+  delta_F1: 82,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 5.5,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 5.2,
+  eco: 1,
+  DM: 860,
+  ash: 97,
+  OM: 903,
+  OMD: 0.61,
+  CP: 124,
+  CPD: 0.58,
+  EE: 30,
+  EED: 0.46,
+  CF: 312,
+  CFD: 0.64,
+  NFE: 437,
+  NFED: 0.59,
+  NDF: 604,
+  starch: 0,
+  sugar: 60
+},
+{
+  id: 50,
+  type: 'straw',
+  name: 'Barley, straw',
+  name_de: 'Gerste, Stroh',
+  delta_F1: 0,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 860,
+  ash: 59,
+  OM: 941,
+  OMD: 0.5,
+  CP: 39,
+  CPD: 0.1,
+  EE: 16,
+  EED: 0.41,
+  CF: 442,
+  CFD: 0.55,
+  NFE: 444,
+  NFED: 0.48,
+  NDF: 798,
+  starch: 0,
+  sugar: 7
+},
+{
+  id: 51,
+  type: 'straw',
+  name: 'Oats, straw',
+  name_de: 'Hafer, Stroh',
+  delta_F1: 0,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 860,
+  ash: 66,
+  OM: 934,
+  OMD: 0.5,
+  CP: 35,
+  CPD: 0.3,
+  EE: 15,
+  EED: 0.34,
+  CF: 440,
+  CFD: 0.58,
+  NFE: 444,
+  NFED: 0.44,
+  NDF: 796,
+  starch: 0,
+  sugar: 14
+},
+{
+  id: 52,
+  type: 'straw',
+  name: 'Wheat, straw',
+  name_de: 'Weizen, Stroh',
+  delta_F1: 0,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 860,
+  ash: 78,
+  OM: 922,
+  OMD: 0.47,
+  CP: 37,
+  CPD: 0.27,
+  EE: 13,
+  EED: 0.43,
+  CF: 429,
+  CFD: 0.56,
+  NFE: 443,
+  NFED: 0.42,
+  NDF: 798,
+  starch: 0,
+  sugar: 8
+},
+{
+  id: 53,
   type: 'concentrate',
   name: 'Barley, grain',
   name_de: 'Gerste (Winter), Körner',
   delta_F1: 0,
   delta_C1: 36,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 880,
   ash: 27,
   OM: 973,
   OMD: 0.85,
-  ME: 12.91,
-  NEL: 8.14,
-  CP: 125,
-  uCP: 164,
-  RNB: -6,
+  CP: 124,
   CPD: 0.74,
-  EE: 25,
+  EE: 27,
   EED: 0.77,
-  CF: 50,
+  CF: 57,
   CFD: 0.32,
-  ADF: 65,
-  NDF: 230,
-  sugar: 20,
-  starch: 605,
-  Ca: 0.7,
-  P: 4,
-  Na: 0.3,
-  Mg: 1.3,
-  K: 5
+  NFE: 765,
+  NFED: 0.92,
+  NDF: 216,
+  starch: 599,
+  sugar: 18
 },
 {
-  id: 49,
+  id: 54,
   type: 'concentrate',
-  name: 'Lucerne, dehydrated meal, immature',
-  name_de: 'Grünmehl, Luzerne, v.d. Knospe',
+  name: 'Faba beans, grain',
+  name_de: 'Ackerbohnen',
   delta_F1: 0,
-  delta_C1: 46,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 1,
-  DM: 890,
-  ash: 118,
-  OM: 882,
-  OMD: 0.7,
-  ME: 9.84,
-  NEL: 5.88,
-  CP: 210,
-  uCP: 177,
-  RNB: 5,
-  CPD: 0.77,
-  EE: 30,
-  EED: 0.41,
-  CF: 185,
-  CFD: 0.54,
-  ADF: 204,
-  NDF: 278,
-  sugar: 50,
-  starch: 0,
-  Ca: 18,
-  P: 3.8,
-  Na: 0.5,
-  Mg: 3,
-  K: 27
-},
-{
-  id: 50,
-  type: 'concentrate',
-  name: 'Oats, grain',
-  name_de: 'Hafer, Körner',
-  delta_F1: 0,
-  delta_C1: 75,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_C1: -87,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 880,
-  ash: 33,
-  OM: 967,
-  OMD: 0.74,
-  ME: 11.53,
-  NEL: 6.97,
-  CP: 123,
-  uCP: 145,
-  RNB: -4,
-  CPD: 0.74,
-  EE: 50,
-  EED: 0.88,
-  CF: 110,
-  CFD: 0.29,
-  ADF: 154,
-  NDF: 308,
-  sugar: 15,
-  starch: 450,
-  Ca: 1.2,
-  P: 3.6,
-  Na: 0.4,
-  Mg: 1.2,
-  K: 5
+  ash: 39,
+  OM: 961,
+  OMD: 0.91,
+  CP: 298,
+  CPD: 0.86,
+  EE: 16,
+  EED: 0.75,
+  CF: 89,
+  CFD: 0.86,
+  NFE: 558,
+  NFED: 0.94,
+  NDF: 161,
+  starch: 422,
+  sugar: 41
 },
 {
-  id: 51,
+  id: 55,
   type: 'concentrate',
   name: 'Maize, grain',
   name_de: 'Mais, Körner',
   delta_F1: 0,
   delta_C1: 75,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 880,
   ash: 17,
   OM: 983,
   OMD: 0.86,
-  ME: 13.28,
-  NEL: 8.38,
-  CP: 102,
-  uCP: 166,
-  RNB: -10,
+  CP: 106,
   CPD: 0.66,
   EE: 45,
   EED: 0.83,
-  CF: 25,
+  CF: 26,
   CFD: 0.46,
-  ADF: 28,
-  NDF: 110,
-  sugar: 20,
-  starch: 695,
-  Ca: 0.4,
-  P: 3.5,
-  Na: 0.2,
-  Mg: 1.3,
-  K: 4
+  NFE: 806,
+  NFED: 0.9,
+  NDF: 120,
+  starch: 694,
+  sugar: 19
 },
 {
-  id: 52,
+  id: 56,
   type: 'concentrate',
-  name: 'Rapeseed, expeller, 15 % ether extracts',
-  name_de: 'Rapskuchen /-expeller , 15% Fett',
+  name: 'Oats, grain',
+  name_de: 'Hafer, Körner',
   delta_F1: 0,
-  delta_C1: 36,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_C1: 75,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
-  DM: 900,
-  ash: 69,
-  OM: 931,
-  OMD: 0.8,
-  ME: 14.19,
-  NEL: 8.72,
-  CP: 340,
-  uCP: 258,
-  RNB: 13,
-  CPD: 0.86,
-  EE: 165,
-  EED: 0.9,
-  CF: 125,
-  CFD: 0.41,
-  ADF: 238,
-  NDF: 275,
-  sugar: 70,
-  starch: 0,
-  Ca: 7.5,
-  P: 11.6,
-  Na: 0.4,
-  Mg: 5.1,
-  K: 13
+  DM: 880,
+  ash: 33,
+  OM: 967,
+  OMD: 0.74,
+  CP: 121,
+  CPD: 0.74,
+  EE: 53,
+  EED: 0.88,
+  CF: 116,
+  CFD: 0.29,
+  NFE: 677,
+  NFED: 0.8,
+  NDF: 312,
+  starch: 452,
+  sugar: 16
 },
 {
-  id: 53,
+  id: 57,
+  type: 'concentrate',
+  name: 'Peas, grain',
+  name_de: 'Erbsen',
+  delta_F1: 0,
+  delta_C1: -87,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 880,
+  ash: 34,
+  OM: 966,
+  OMD: 0.9,
+  CP: 251,
+  CPD: 0.82,
+  EE: 15,
+  EED: 0.62,
+  CF: 67,
+  CFD: 0.78,
+  NFE: 633,
+  NFED: 0.95,
+  NDF: 155,
+  starch: 478,
+  sugar: 61
+},
+{
+  id: 58,
   type: 'concentrate',
   name: 'Rye, grain',
   name_de: 'Roggen, Körner',
   delta_F1: 0,
   delta_C1: 36,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 880,
   ash: 21,
   OM: 979,
   OMD: 0.9,
-  ME: 13.3,
-  NEL: 8.49,
-  CP: 105,
-  uCP: 161,
-  RNB: -9,
-  CPD: 0.65,
-  EE: 20,
-  EED: 0.55,
-  CF: 25,
-  CFD: 0.51,
-  ADF: 38,
-  NDF: 119,
-  sugar: 70,
-  starch: 640,
-  Ca: 0.9,
-  P: 3.3,
-  Na: 0.3,
-  Mg: 1.4,
-  K: 6
-},
-{
-  id: 54,
-  type: 'concentrate',
-  name: 'Soybean seeds, heat treated',
-  name_de: 'Sojabohne, Samen, dampferhitzt',
-  delta_F1: 0,
-  delta_C1: -46,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 1,
-  DM: 900,
-  ash: 54,
-  OM: 946,
-  OMD: 0.86,
-  ME: 15.89,
-  NEL: 9.9,
-  CP: 400,
-  uCP: 250,
-  RNB: 24,
-  CPD: 0.9,
-  EE: 200,
-  EED: 0.91,
-  CF: 60,
-  CFD: 0.69,
-  ADF: 108,
+  CP: 112,
+  CPD: 0.69,
+  EE: 18,
+  EED: 0.58,
+  CF: 27,
+  CFD: 0.47,
+  NFE: 822,
+  NFED: 0.94,
   NDF: 132,
-  sugar: 80,
-  starch: 60,
-  Ca: 2.9,
-  P: 7.1,
-  Na: 0.2,
-  Mg: 3.7,
-  K: 20
+  starch: 632,
+  sugar: 68
 },
 {
-  id: 55,
-  type: 'concentrate',
-  name: 'Soybean seeds, extracted meal dehulled',
-  name_de: 'Sojaextraktionsschrot (gesch.)',
-  delta_F1: 0,
-  delta_C1: -46,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 0,
-  DM: 880,
-  ash: 67,
-  OM: 933,
-  OMD: 0.92,
-  ME: 13.76,
-  NEL: 8.64,
-  CP: 500,
-  uCP: 438,
-  RNB: 10,
-  CPD: 0.92,
-  EE: 15,
-  EED: 0,
-  CF: 70,
-  CFD: 0.85,
-  ADF: 119,
-  NDF: 203,
-  sugar: 105,
-  starch: 70,
-  Ca: 3.1,
-  P: 7,
-  Na: 0.2,
-  Mg: 3,
-  K: 22
-},
-{
-  id: 56,
-  type: 'concentrate',
-  name: 'Sunflower seeds, extracted meal',
-  name_de: 'Sonnenblumenextraktionsschrot, teilgesch.',
-  delta_F1: 0,
-  delta_C1: -46,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
-  eco: 0,
-  DM: 900,
-  ash: 70,
-  OM: 930,
-  OMD: 0.65,
-  ME: 10.24,
-  NEL: 6.01,
-  CP: 383,
-  uCP: 203,
-  RNB: 29,
-  CPD: 0.85,
-  EE: 25,
-  EED: 0.85,
-  CF: 220,
-  CFD: 0.27,
-  ADF: 264,
-  NDF: 396,
-  sugar: 80,
-  starch: 0,
-  Ca: 4,
-  P: 10.7,
-  Na: 0.5,
-  Mg: 5.2,
-  K: 13
-},
-{
-  id: 57,
+  id: 59,
   type: 'concentrate',
   name: 'Triticale, grain',
   name_de: 'Triticale, Körner',
   delta_F1: 0,
   delta_C1: 36,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 880,
   ash: 22,
   OM: 978,
   OMD: 0.89,
-  ME: 13.17,
-  NEL: 8.37,
-  CP: 120,
-  uCP: 162,
-  RNB: -7,
+  CP: 145,
   CPD: 0.71,
-  EE: 20,
+  EE: 18,
   EED: 0.65,
-  CF: 25,
+  CF: 28,
   CFD: 0.32,
-  ADF: 38,
-  NDF: 119,
-  sugar: 45,
-  starch: 660,
-  Ca: 0.5,
-  P: 4.3,
-  Na: 0.1,
-  Mg: 1.3,
-  K: 5.3
+  NFE: 787,
+  NFED: 0.93,
+  NDF: 146,
+  starch: 640,
+  sugar: 40
 },
 {
-  id: 58,
+  id: 60,
   type: 'concentrate',
   name: 'Wheat, grain',
   name_de: 'Weizen (Winter), Körner',
   delta_F1: 0,
   delta_C1: 36,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 880,
   ash: 19,
   OM: 981,
   OMD: 0.89,
-  ME: 13.4,
-  NEL: 8.53,
-  CP: 140,
-  uCP: 170,
-  RNB: -5,
+  CP: 138,
   CPD: 0.78,
   EE: 20,
   EED: 0.78,
-  CF: 30,
+  CF: 29,
   CFD: 0.41,
-  ADF: 30,
-  NDF: 123,
-  sugar: 35,
-  starch: 670,
-  Ca: 0.6,
-  P: 3.9,
-  Na: 0.2,
-  Mg: 1.4,
-  K: 4.7
+  NFE: 794,
+  NFED: 0.93,
+  NDF: 143,
+  starch: 662,
+  sugar: 33
 },
 {
-  id: 59,
+  id: 61,
+  type: 'concentrate',
+  name: 'Brewer\'s grains, silage',
+  name_de: 'Biertrebersilage',
+  delta_F1: 0,
+  delta_C1: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 260,
+  ash: 48,
+  OM: 952,
+  OMD: 0.68,
+  CP: 249,
+  CPD: 0.82,
+  EE: 86,
+  EED: 0.92,
+  CF: 193,
+  CFD: 0.54,
+  NFE: 424,
+  NFED: 0.6,
+  NDF: 575,
+  starch: 17,
+  sugar: 6
+},
+{
+  id: 62,
+  type: 'concentrate',
+  name: 'Lucerne, dehydrated meal, immature',
+  name_de: 'Grünmehl, Luzerne, jung',
+  delta_F1: 0,
+  delta_C1: 46,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 900,
+  ash: 118,
+  OM: 882,
+  OMD: 0.7,
+  CP: 218,
+  CPD: 0.77,
+  EE: 35,
+  EED: 0.41,
+  CF: 222,
+  CFD: 0.54,
+  NFE: 407,
+  NFED: 0.76,
+  NDF: 398,
+  starch: 0,
+  sugar: 53
+},
+{
+  id: 63,
+  type: 'concentrate',
+  name: 'Rapeseed, cake 15% ether extracts',
+  name_de: 'Rapskuchen, 15% Fett',
+  delta_F1: 0,
+  delta_C1: 36,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 900,
+  ash: 69,
+  OM: 931,
+  OMD: 0.8,
+  CP: 350,
+  CPD: 0.86,
+  EE: 155,
+  EED: 0.9,
+  CF: 111,
+  CFD: 0.41,
+  NFE: 315,
+  NFED: 0.84,
+  NDF: 254,
+  starch: 0,
+  sugar: 95
+},
+{
+  id: 64,
+  type: 'concentrate',
+  name: 'Rapessed, expeller',
+  name_de: 'Rapsextraktionsschrot',
+  delta_F1: 0,
+  delta_C1: 36,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: NaN,
+  DM: 890,
+  ash: 77,
+  OM: 923,
+  OMD: 0.8,
+  CP: 399,
+  CPD: 0.84,
+  EE: 25,
+  EED: 0.78,
+  CF: 131,
+  CFD: 0.5,
+  NFE: 368,
+  NFED: 0.86,
+  NDF: 300,
+  starch: 0,
+  sugar: 80
+},
+{
+  id: 65,
+  type: 'concentrate',
+  name: 'Soybean seeds, heat treated',
+  name_de: 'Sojabohnen, dampferhitzt',
+  delta_F1: 0,
+  delta_C1: -46,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 1,
+  DM: 935,
+  ash: 54,
+  OM: 946,
+  OMD: 0.86,
+  CP: 398,
+  CPD: 0.9,
+  EE: 203,
+  EED: 0.91,
+  CF: 62,
+  CFD: 0.69,
+  NFE: 283,
+  NFED: 0.8,
+  NDF: 132,
+  starch: 57,
+  sugar: 81
+},
+{
+  id: 66,
+  type: 'concentrate',
+  name: 'Soybean meal, partly dehulled, heat treated',
+  name_de: 'Sojaextraktionsschrot geschält, dampferhitzt',
+  delta_F1: 0,
+  delta_C1: -46,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 0,
+  DM: 890,
+  ash: 67,
+  OM: 933,
+  OMD: 0.92,
+  CP: 548,
+  CPD: 0.92,
+  EE: 13,
+  EED: 0,
+  CF: 39,
+  CFD: 0.85,
+  NFE: 333,
+  NFED: 0.93,
+  NDF: 90,
+  starch: 69,
+  sugar: 115
+},
+{
+  id: 67,
+  type: 'concentrate',
+  name: 'Sunflower seed meal, partly dehulled',
+  name_de: 'Sonnenblumenextraktionsschrot, teilgesch.',
+  delta_F1: 0,
+  delta_C1: -46,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: 0,
+  DM: 900,
+  ash: 70,
+  OM: 930,
+  OMD: 0.65,
+  CP: 379,
+  CPD: 0.85,
+  EE: 24,
+  EED: 0.85,
+  CF: 223,
+  CFD: 0.27,
+  NFE: 304,
+  NFED: 0.7,
+  NDF: 378,
+  starch: 0,
+  sugar: 68
+},
+{
+  id: 68,
+  type: 'concentrate',
+  name: 'Sunflower cake, partly dehulled, 4-8% ether extracts',
+  name_de: 'Sonnenblumenkuchen, teilentschält, 4-8% Fett',
+  delta_F1: 0,
+  delta_C1: -46,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
+  eco: NaN,
+  DM: 910,
+  ash: 66,
+  OM: 934,
+  OMD: 0.65,
+  CP: 390,
+  CPD: 0.85,
+  EE: 62,
+  EED: 0.85,
+  CF: 206,
+  CFD: 0.27,
+  NFE: 276,
+  NFED: 0.7,
+  NDF: 349,
+  starch: 0,
+  sugar: 85
+},
+{
+  id: 69,
   type: 'concentrate',
   name: 'Wheat, bran',
   name_de: 'Weizenkleie',
   delta_F1: 0,
   delta_C1: 75,
-  delta_FR1: 0,
-  delta_S1: 0,
-  delta_S2: 0,
-  delta_H1: 0,
-  delta_H2: 0,
+  delta_FR1_QIL: 0,
+  delta_S1_QIL: 0,
+  delta_S2_QIL: 0,
+  delta_H1_QIL: 0,
+  delta_H2_QIL: 0,
+  delta_FR1_QIB: 0,
+  delta_S1_QIB: 0,
+  delta_S2_QIB: 0,
+  delta_H1_QIB: 0,
+  delta_H2_QIB: 0,
   eco: 1,
   DM: 880,
   ash: 65,
   OM: 935,
   OMD: 0.67,
-  ME: 9.98,
-  NEL: 5.9,
   CP: 160,
-  uCP: 143,
-  RNB: 3,
   CPD: 0.76,
-  EE: 45,
+  EE: 43,
   EED: 0.59,
-  CF: 135,
+  CF: 134,
   CFD: 0.33,
-  ADF: 149,
-  NDF: 513,
-  sugar: 65,
-  starch: 145,
-  Ca: 1.8,
-  P: 13,
-  Na: 0.5,
-  Mg: 5.3,
-  K: 12
+  NFE: 598,
+  NFED: 0.73,
+  NDF: 580,
+  starch: 149,
+  sugar: 64
 }
 ];
 
