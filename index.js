@@ -145,7 +145,7 @@ function feedEvaluation() {
     /* FI */
     var fi = {};
     if (f.type === 'concentrate')
-      fi.E = feed.evaluation.fi.E_c(f.OM, f.CP, f.CPD, f.CF, f.CFD, f.EE, f.EED, /*NFE,*/ 0.83);
+      fi.E = feed.evaluation.fi.E_c(f.CP, f.CPD, f.CF, f.CFD, f.EE, f.EED, f.NFE, f.NFED);
     else
       fi.E = feed.evaluation.fi.E_f(f.OMD, f.OM, f.type);
 
@@ -163,8 +163,9 @@ function feedEvaluation() {
       fr.QIL = undefined;
       fr.FV = undefined; /* concentrate fill value is property of cow */
     } else { 
-      fr.E = feed.evaluation.fr.E_f(f.OMD, f.OM, f.CP, f.CF, f.type, f.DM / 10, f.delta_FR1, null, true, 1, 1);
-      fr.QIL = feed.evaluation.fr.QIL(f.OMD, f.CP, f.DM, f.type, f.delta_FR1, f.delta_S1, f.delta_H1, f.delta_S2, f.delta_H2);
+      /* TODO: add feed level adjustment -> recalculate when feed level parameters (req_m, req_t) are available */ 
+      fr.E = feed.evaluation.fr.E_f(f.OMD, f.OM, f.CP, f.CF, f.type, f.DM / 10, f.delta_FR1_QIL, null, true, 1, 1); 
+      fr.QIL = feed.evaluation.fr.QIL(f.OMD, f.CP, f.DM, f.type, f.delta_FR1_QIL, f.delta_S1, f.delta_H1_QIL, f.delta_S2_QIL, f.delta_H2_QIL);
       fr.FV = dairy.intake.FV_f(fr.QIL);
     }
 
@@ -230,24 +231,24 @@ function feedEvaluation() {
       cow.IC = dairy.intake.IC(cow.BW, cow.milk, cow.BCS, cow.DIM / 7, cow.DG / 7, cow.AGE_days / DAYS_IN_MONTH, cow.P);
 
       cow.req.fi = {
-          main: dairy.requirements.fi.main(cow.BW, cow.IC, f)
-        , prod: cow.isDry ? ({ E: 0, P: 0 }) : (dairy.requirements.fi.prod(cow.milk, cow.fat, cow.protein))
-        , gest: dairy.requirements.fi.gest(cow.DG / 7)
-        , weit: dairy.requirements.fi.weit(cow.BWC)
+          main: dairy.requirements.fi.main(cow.BW, cow.IC, f, cow.P)
+        , prod: cow.isDry ? ({ E: 0, P: 0 }) : (dairy.requirements.fi.prod(cow.milk, cow.fat, cow.protein, cow.P))
+        , gest: dairy.requirements.fi.gest(cow.DG / 7, cow.P)
+        , weit: dairy.requirements.fi.weit(cow.BWC, cow.P)
         , total: { E: 0, P: 0 }
       }
 
       cow.req.fi.total.E = cow.req.fi.main.E + cow.req.fi.prod.E + cow.req.fi.gest.E + cow.req.fi.weit.E;
       cow.req.fi.total.P = cow.req.fi.main.P + cow.req.fi.prod.P + cow.req.fi.gest.P + cow.req.fi.weit.P;
 
-      /* just an initial guess */
+      /* just an initial guess TODO: remove feed level adjustment */
       var ME_total = 195;
 
       cow.req.gb = {
-          main: dairy.requirements.gb.main(cow.BW, cow.IC, ME_total, f)
-        , prod: cow.isDry ? ({ E: 0, P: 0 }) : (dairy.requirements.gb.prod(cow.milk, cow.fat, cow.protein))
-        , gest: dairy.requirements.gb.gest(cow.DG / 7, MBW)
-        , weit: dairy.requirements.gb.weit(cow.BWC)
+          main: dairy.requirements.gb.main(cow.BW, cow.IC, ME_total, f, null, null, cow.BWC, cow.P)
+        , prod: cow.isDry ? ({ E: 0, P: 0 }) : (dairy.requirements.gb.prod(cow.milk, cow.fat, cow.protein, cow.P))
+        , gest: dairy.requirements.gb.gest(cow.DG / 7, MBW, cow.P)
+        , weit: dairy.requirements.gb.weit(cow.BWC, cow.P)
         , total: { E: 0, P: 0 }
       }
 
@@ -255,15 +256,15 @@ function feedEvaluation() {
       cow.req.gb.total.P = cow.req.gb.main.P + cow.req.gb.prod.P + cow.req.gb.gest.P + cow.req.gb.weit.P;
 
       /* recalculate with cow.req.total.E as ME_total */
-      cow.req.gb.main = dairy.requirements.gb.main(cow.BW, cow.IC, cow.req.gb.total.E, f);
+      cow.req.gb.main = dairy.requirements.gb.main(cow.BW, cow.IC, cow.req.gb.total.E, f, null, null, cow.BWC, cow.P);
       cow.req.gb.total.E = cow.req.gb.main.E + cow.req.gb.prod.E + cow.req.gb.gest.E + cow.req.gb.weit.E;
       cow.req.gb.total.P = cow.req.gb.main.P + cow.req.gb.prod.P + cow.req.gb.gest.P + cow.req.gb.weit.P;
 
       cow.req.fr = {
-          main: dairy.requirements.fr.main(cow.BW, cow.IC, f)
-        , prod: cow.isDry ? ({ E: 0, P: 0 }) : (dairy.requirements.fr.prod(cow.milk, cow.fat, cow.protein))
-        , gest: dairy.requirements.fr.gest(cow.DG / 7, WB)
-        , weit: dairy.requirements.fr.weit(cow.BWC, cow.DPP / 7)
+          main: dairy.requirements.fr.main(cow.BW, cow.IC, f, cow.P)
+        , prod: cow.isDry ? ({ E: 0, P: 0 }) : (dairy.requirements.fr.prod(cow.milk, cow.fat, cow.protein, cow.P))
+        , gest: dairy.requirements.fr.gest(cow.DG / 7, WB, cow.P)
+        , weit: dairy.requirements.fr.weit(cow.BWC, cow.DPP / 7, cow.P)
         , total: { E: 0, P: 0 }
       }
 
@@ -271,10 +272,10 @@ function feedEvaluation() {
       cow.req.fr.total.P = cow.req.fr.main.P + cow.req.fr.prod.P + cow.req.fr.gest.P + cow.req.fr.weit.P;
 
       cow.req.de = {
-          main: dairy.requirements.de.main(cow.BW, cow.IC, f)
-        , prod: cow.isDry ? ({ E: 0, P: 0 }) : (dairy.requirements.de.prod(cow.milk, cow.fat, cow.protein))
-        , gest: dairy.requirements.de.gest(cow.DG / 7, cow.DIM)
-        , weit: dairy.requirements.de.weit(cow.BWC)
+          main: dairy.requirements.de.main(cow.BW, cow.IC, f, cow.P)
+        , prod: cow.isDry ? ({ E: 0, P: 0 }) : (dairy.requirements.de.prod(cow.milk, cow.fat, cow.protein, cow.P))
+        , gest: dairy.requirements.de.gest(cow.DG / 7, cow.DIM, cow.P)
+        , weit: dairy.requirements.de.weit(cow.BWC, cow.BW, cow.P)
         , total: { E: 0, P: 0 }
       }
 
