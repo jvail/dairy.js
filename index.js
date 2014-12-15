@@ -165,7 +165,7 @@ function feedEvaluation() {
     } else { 
       /* TODO: add feed level adjustment -> recalculate when feed level parameters (req_m, req_t) are available */ 
       fr.E = feed.evaluation.fr.E_f(f.OMD, f.OM, f.CP, f.CF, f.type, f.DM / 10, f.delta_FR1_QIL, null, true, 1, 1); 
-      fr.QIL = feed.evaluation.fr.QIL(f.OMD, f.CP, f.DM, f.type, f.delta_FR1_QIL, f.delta_S1, f.delta_H1_QIL, f.delta_S2_QIL, f.delta_H2_QIL);
+      fr.QIL = feed.evaluation.fr.QIL(f.OMD, f.CP, f.DM, f.type, f.delta_FR1_QIL, f.delta_S1_QIL, f.delta_H1_QIL, f.delta_S2_QIL, f.delta_H2_QIL);
       fr.FV = dairy.intake.FV_f(fr.QIL);
     }
 

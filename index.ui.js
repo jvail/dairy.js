@@ -211,7 +211,7 @@ csv = '1;17.3\n\
         $('#feeds-p').append('<p><label style="font-weight: bold;"">'+f.type+'</label></p>');
 
       var checked = '';
-      if ([17, 29, 39, 58].indexOf(f.id) > -1)
+      if ([19, 32, 52, 59].indexOf(f.id) > -1)
         checked = 'checked';
       // var checked = 'checked';
 
