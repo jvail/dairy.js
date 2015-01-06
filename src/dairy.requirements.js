@@ -697,6 +697,65 @@ var fi = (function () {
 
   };
 
+  /* FOR THE SAKE OF COMPLETENESS: fi energy correction
+
+    The Finnish nutrient requirements for dairy cows includes a correction equation for energy intake, which in SOLID-DSS
+    is probably not usable, because it requires knowledge of the total diet when calculating intake. (Which in SOLID-DSS
+    is calculated before diets are formulated.) However, we want to estimate feed intake according to the Finnish equation
+    and correct it using their correction equation after the solver has produced the diets and then check to see how big
+    the difference between the Finnish energy intake and the energy intake based on the results from the solver is.
+
+    The last description of the Finnish system of feed evaluation published in print is MTT (2006). Since then all updates
+    have been published online, quoted as MTT (2014).
+
+    Energy values of feeds are expressed in Finnish MJ ME, details see feed.evaluation.js
+
+    REFERENCES
+
+    MTT 2006. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations). Agrifood Research Finland,
+    Jokioninen, Finland, 84 p.
+
+    MTT 2014. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations) [online]. Agrifood
+    Research Finland, Jokioinen. Accessed last on November 20, 2014, available at:
+    https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
+
+
+    Estimation of feed intake according to MTT (2014)
+
+    In Finland, feed intake of dairy cows is estimated using the energy requirements and an average diet energy
+    concentration, assuming that energy supply is adequate and the cow is neither mobilizing nor reconstituting body
+    reserves.
+
+    f_intake  [kg (DM)]       Estimated feed intake, kg DM
+    ME_req    [MJ ME]         Total energy requirements of a cow per day
+    ME_avg    [MJ kg-1 (DM)]  Average energy concentration of the total diet
+  */
+
+  var f_intake = function (ME_req, ME_avg) {
+
+    return ME_req / ME_avg;
+
+  };
+
+  /*
+    Calculation of corrected energy intake according to MTT (2014)
+
+    The Finnish feed evaluation system uses constant energy values for feeds and doesn´t take associative effects of feeds
+    and effects of feeding level into account. As a remedy, the energy intake of the cow is corrected in order to consider
+    effects of increased dry matter intake, high energy diets and diets with low crude protein concentration. 
+
+    f_intake_corr [MJ ME]        Corrected energy intake
+    f_intake      [kg (DM)]      Estimated feed intake, kg DM
+    ME_avg        [MJ kg-1 (DM)] Average energy concentration of the total diet
+    CP_avg        [g kg-1 (DM)]  Average crude protein concentration of the total diet
+  */
+
+  var f_intake_corr = (function (f_intake, ME_avg, CP_avg) {
+
+    return f_intake * ME_avg - (-56.7 + 6.99 * ME_avg + 1.621 * f_intake - 0.44595 * CP_avg + 0.00112 * CP_avg * CP_avg);
+    
+  };  
+
   return {
         main: maintenance
       , prod: production
