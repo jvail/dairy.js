@@ -1282,12 +1282,13 @@ var fr = (function () {
     k_PDI values were taken from Jarrige (1989) Table 9.3
 
     weight  [{UFL, PDI}]  
+    BW      [kg]          body weight
     BWC     [kg]          body weight change
     WL      [week]        week of lactation
     p       [#]           parity
   */
 
-  var weight = function (BWC, WL, p) {
+  var weight = function (BW, BWC, WL, p) {
 
     if (p > 0) {
     
@@ -1314,12 +1315,20 @@ var fr = (function () {
 
           /* EBW [kg] empty body weight, Agabriel (2010) p. 96 equation 5.9, with C_0 = 0.482 and C_1 = 1.096 */
       var EBW = 0.482 * pow(BW, 1.096)
+          /*LIP [kg] lipid content of the body weight, Agabriel (2010) p. 96 equation 5.13*/
+        , LIP = 0.001 * pow(EBW, (1.883))
+          /*FFBW[kg] fat free body weight*/
+        , FFBW = BW - LIP
+          /*PROT [kg] protein content of the body weight, Agabriel (2010) p. 97 equation 5.14*/
+        , PROT = 0.1436 * pow(FFBW, (1.0723))
           /* EBWC [kg] empty body weight change, Agabriel (2010) p. 97 equation 5.16, with C_1 = 1.096 */
         , EBWC = (EBW / BW) * 1.096 * BWC
           /* GLIP [kg] daily gain of fat, Agabriel (2010) p. 97 equation 5.17, with B_0 = 0.001 and B_1 = 1.883 */
         , GLIP = 0.001 * 1.883 * pow(EBW, (1.883-1)) * EBWC
-          /* GPROT [kg] daily gain for protein, Agabriel(2010) p. 97 equation 5.14 */
-        , GPROT = 0.1436 * pow((EBWC - GLIP), 1.0723)
+          /*FFBWC [kg] fat free body weight change*/
+        , FFBWC = BWC - GLIP
+          /* GPROT [kg] daily gain of protein */
+        , GPROT = PROT / FFBW * FFBWC * 1.0723
           /* RE [Mcal day-1] energy retention */
         , RE = 5.48 * GPROT + 9.39 * GLIP
           /* k_l [0-1] efficency of using ME for lactation */
