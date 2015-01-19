@@ -887,7 +887,7 @@ var gb = (function () {
       };
 
     } else {
-          /* TODO: exclude feed level adjustment in SOLID-DSS */
+          /* TODO: exclude feed level adjustment in SOLID-DSS. Use 11 MJ ME/kg TM instead of ME_total / DMI */
       var ME = 22.2136 - ME_total / DMI * 3.3290 + BW * 0.1357 + BWC * 48.5855
         , MP = 80.7936 + BW * 0.3571 + BWC * 223.1852
         ;
