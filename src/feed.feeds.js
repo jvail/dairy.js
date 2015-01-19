@@ -2299,7 +2299,7 @@ feed.feeds = [
   CP: 548,
   CPD: 0.92,
   EE: 13,
-  EED: 0,
+  EED: 0.68,
   CF: 39,
   CFD: 0.85,
   NFE: 333,
