@@ -65,7 +65,7 @@ id;type;name;name_de;delta_F1;delta_C1;delta_FR1_QIL;delta_S1_QIL;delta_S2_QIL;d
 63;concentrate;Rapeseed, cake 15% ether extracts;Rapskuchen, 15% Fett;0.00;36.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;1;900;69;931;0.80;350;0.86;155;0.90;111;0.41;315;0.84;254;0;95
 64;concentrate;Rapessed, expeller;Rapsextraktionsschrot;0.00;36.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;;890;77;923;0.80;399;0.84;25;0.78;131;0.50;368;0.86;300;0;80
 65;concentrate;Soybean seeds, heat treated;Sojabohnen, dampferhitzt;0.00;-46.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;1;935;54;946;0.86;398;0.90;203;0.91;62;0.69;283;0.80;132;57;81
-66;concentrate;Soybean meal, partly dehulled, heat treated;Sojaextraktionsschrot geschält, dampferhitzt;0.00;-46.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0;890;67;933;0.92;548;0.92;13;0.00;39;0.85;333;0.93;90;69;115
+66;concentrate;Soybean meal, partly dehulled, heat treated;Sojaextraktionsschrot geschält, dampferhitzt;0.00;-46.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0;890;67;933;0.92;548;0.92;13;0.68;39;0.85;333;0.93;90;69;115
 67;concentrate;Sunflower seed meal, partly dehulled;Sonnenblumenextraktionsschrot, teilgesch.;0.00;-46.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0;900;70;930;0.65;379;0.85;24;0.85;223;0.27;304;0.70;378;0;68
 68;concentrate;Sunflower cake, partly dehulled, 4-8% ether extracts;Sonnenblumenkuchen, teilentschält, 4-8% Fett;0.00;-46.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;;910;66;934;0.65;390;0.85;62;0.85;206;0.27;276;0.70;349;0;85
 69;concentrate;Wheat, bran;Weizenkleie;0.00;75.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;0.00;1;880;65;935;0.67;160;0.76;43;0.59;134;0.33;598;0.73;580;149;64
