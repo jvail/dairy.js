@@ -17,7 +17,7 @@ Examples tested with the latest (09.2014) Firefox & Chrome browser are available
 
 ## Scope & Limitations
 
-The library was initially developed to be used in a DSS to simulate low-input and organic dairy herds. Therefore some parts (e.g. mobilization&reconstitution) might not be suitable for highly productive cows. Since the DSS's application is located somewhere inbetween science&extension the code contains many empirical functions which are - by nature - limited in scope.  
+The library was initially developed to be used in a [DSS](https://github.com/zalf-lse/solid-dss) to simulate low-input and organic dairy herds. Therefore some parts (e.g. mobilization&reconstitution) might not be suitable for highly productive cows. Since the DSS's application is located somewhere inbetween science&extension the code contains many empirical functions which are - by nature - limited in scope.  
 
 Potential use cases range from simulation, decision support, education, rapid model prototyping or scientific modeling in the field of agriculture. We tried to keep the code structure as simple as possible to make it easy to re-use, modify only parts and use them in any environment (web, web-worker, Node.js).
 
