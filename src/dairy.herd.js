@@ -8,12 +8,15 @@
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to the article:
+  Any publication for which this file or a derived work is used must include an a reference to at least one source:
 
-  Baldinger, L., Vaillant, J., Zollitsch, W., Rinne, M. (2014) SOLID-DSS - Eine online-Anwendung zur verbesserten 
-  Abstimmung von Grundfutterangebot und -bedarf auf biologisch wirtschaftenden Low Input Milchviehbetrieben.
-  In: Wiesinger, K., Cais, K., Obermaier, S. (eds), Angewandte Forschung und Beratung für den ökologischen Landbau in 
-  Bayern: Öko-Landbau-Tag 2014 am 9. April 2014 in Triesdorf; Tagungsband. LfL, Freising-Weihenstephan, pp. 19-22.
+  Vaillant, J. and Baldinger, L. 2014. 
+  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
+  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+
+  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
+  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
+  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
   
   TODO
   
