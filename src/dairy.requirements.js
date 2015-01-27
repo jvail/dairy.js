@@ -2,20 +2,25 @@
   Energy and protein requirements according to a selection of evaluation systems (DE, FI, GB, FR).
 
   REFERENCES
-
-  NRC (National Research Council). 2001. Nutrient requirements of dairy cattle. 7th edition. National Academy Press,
-  Washington, D.C. USA.
-
-  GfE [Society of Nutrition Physiology] 2001. Empfehlungen zur Energie- und Nährstoffversorgung der Milchkühe und
-  Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers]. DLG-Verlag, Frankfurt/
-  Main, Germany.
-
+  
   AFRC (Agricultural Food and Research Council). 1993. Energy and protein requirements of ruminants. An advisory
   manual prepared by the AFRC Technical Committee on Responses to Nutrients. CAB International, Wallingford, UK.
-
+  
+  Agabriel, J. 2010. Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables INRA
+  2010. Editions Quae, France.
+  
   Dong, L.F., Yan, T., Ferris, C.P. and McDowell, D.A. 2014. Comparison of energy utilisation and energetic efficiency
   of dairy cows under different input systems. In: Proceedings of the 65th Conference of European Association of
   Animal Production. p. 395, Copenhagen, Denmark.
+  
+  Feed into Milk Consortium. 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
+  Ed. Thomas, C. Nottingham University Press, UK.
+  
+  GfE [Society of Nutrition Physiology] 2001. Empfehlungen zur Energie- und Nährstoffversorgung der Milchkühe und
+  Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers]. DLG-Verlag, Frankfurt/
+  Main, Germany.
+  
+  Jarrige, R. 1989. Ruminant nutrition: recommended allowances and feed tables. John Libbey Eurotext, France.
   
   MTT. 2006. Rehutaulukot ja ruokintasuositukset [Feed tables and feeding recommendations]. Agrifood Research Finland,
   Jokioninen, Finland.
@@ -24,20 +29,15 @@
   Research Finland, Jokioinen. Accessed last on November 20, 2014, available at:
   https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
 
+  NRC (National Research Council). 2001. Nutrient requirements of dairy cattle. 7th edition. National Academy Press,
+  Washington, D.C. USA.
+
   Sjaunja, L.-O., Baevre, L., Junkarinen, L., Pedersen, J. and Setala, J. 1990. A Nordic proposal for an energy corrected
   milk (ECM) formula. In: in Proceedings of the 27th Biennial Session of the International Committee for Animal Recording.
   Paris, France. p. 156-157.
 
   Tyrrell, H.F. and Reid, J.T. 1965. Prediction of the energy value of cow's milk. Journal of Dairy Science 48(9):
   1215-1223.
-
-  Feed into Milk Consortium. 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
-  Ed. Thomas, C. Nottingham University Press, UK.
-
-  Agabriel, J. 2010. Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables INRA
-  2010. Editions Quae, France.
-
-  Jarrige, R. 1989. Ruminant nutrition: recommended allowances and feed tables. John Libbey Eurotext,France.
 
   LICENSE
 
