@@ -9,8 +9,8 @@
   DLG [German Agricultural Society]. 1997. DLG-Futterwerttabellen – Wiederkäuer [Feed Tables Ruminants]. University Hohenheim
   (ed.). 7th edition, DLG-Verlag, Frankfurt/Main, Germany.
   
-  Agabriel, J. (ed.) (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables
-  INRA 2010. Editions Quae, France.
+  Agabriel, J. 2010. Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables INRA
+  2010. Editions Quae, France.
 
   LICENSE
 
