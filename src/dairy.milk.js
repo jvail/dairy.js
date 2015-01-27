@@ -4,7 +4,7 @@
   REFERENCES
 
   Wood, P.D.P. 1980. Breed variations in the shape of the lactation curve of cattle and their implications for
-  efficiency. Animal Science 31(2):133-141.
+  efficiency. Animal Production 31(2):133-141.
 
   Tyrrell, H.F. and Reid, J.T. 1965. Prediction of the energy value of cow's milk. Journal of Dairy Science 48(9):
   1215-1223.
