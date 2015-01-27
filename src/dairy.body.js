@@ -2,17 +2,26 @@
   Body condition score, mobilization and body weight.
 
   REFERENCES
+  
+  Friggens, N.C., Ingvartsen, K.L. and Emmans, G.C. 2004. Prediction of body lipid change in pregnancy and lactation.
+  Journal of Dairy Science 87(4):988–1000.
+  
+  Johnson, I.R. 2008. Biophysical pasture model documentation: model documentation for DairyMod, EcoMod and the SGS
+  Pasture Model. IMJ Consultants, Armidale, NSW, Australia. p. 144. Available at:
+  http://imj.com.au/wp-content/uploads/2014/08/GrazeMod.pdf
+  
+  Johnson, I.R. 2013. DairyMod and the SGS Pasture Model: a mathematical description of the biophysical model structure.
+  IMJ Consultants, Darrigo, NSW, Australia. p. 120. Available at:
+  http://imj.com.au/wp-content/uploads/2014/08/DM_SGS_documentation.pdf
 
-  Metzner, M, Heuwieser, W. und W. Klee, 1993. Die Beurteilung der Körperkondition (body condition scoring) im 
-  Herdenmanagement. Der praktische Tierarzt 11, 991–998
+  Metzner, M., Heuwieser, W. und Klee, W. 1993. Die Beurteilung der Körperkondition (body condition scoring) im 
+  Herdenmanagement. Der praktische Tierarzt 74(11):991–998.
+  
+  Wright, I.A. and Russel, A.J.F. 1984a. Partition of fat, body composition and body condition score in mature cows.
+  Animal Science 38(1):23-32.
 
-  Friggens NC, Ingvartsen KL and Emmans GC 2004. Prediction of body lipid change in pregnancy and lactation.
-  Journal of Dairy Science 87, 988–1000.
-
-  Johnson IR (2008). Biophysical pasture model documentation: model documentation for DairyMod, EcoMod and the SGS 
-  Pasture Model. (IMJ Consultants: Dorrigo, NSW) (http://imj.com.au/gmdocs/)
-
-  Wright, Russel 1984. Estimation in vivo of the chemical composition of the bodies of mature cows.
+  Wright, I.A. and Russel, A.J.F. 1984b. Estimation in vivo of the chemical composition of the bodies of mature cows.
+  Animal Science 38(1):33-44.
 
   LICENSE
 
