@@ -3,17 +3,14 @@
 
   REFERENCES
 
-  Wood, P.D.P. 1980.
-  Breed variations in the shape of the lactation curve of cattle and their implications for efficiency,
-  Animal Science, Volume 31, Issue 02, 1980, pp 133-141
+  Wood, P.D.P. 1980. Breed variations in the shape of the lactation curve of cattle and their implications for
+  efficiency. Animal Science 31(2):133-141.
 
-  Tyrrell, H.F. et al. 1965.
-  Prediction of the Energy Value of Cow's Milk,
-  Journal of Dairy Science, Volume 48, Issue 9, 1215 - 1223
+  Tyrrell, H.F. and Reid, J.T. 1965. Prediction of the energy value of cow's milk. Journal of Dairy Science 48(9):
+  1215-1223.
 
-  DLG-Information 1/2006.
-  Schätzung der Futteraufnahme bei der Milchkuh,
-  DLG-Arbeitskreis Futter und Fütterung
+  DLG. 2006. Schätzung der Futteraufnahme bei der Milchkuh [Estimating feed intake of dairy cows]. DLG-Information
+  1/2006. DLG-Verlag, Frankfurt/Main, Germany. p. 29.
 
   LICENSE
 
