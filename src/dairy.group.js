@@ -8,8 +8,8 @@
 
   REFERENCES
 
-  McGilliard, M. L., J. M. Swisher, and R. E. James. 1983.
-  Grouping lactating cows by nutritional requirements for feeding. J. Dairy Sci. 6631084-1093
+  McGilliard, M.L., Swisher, J.M. and James, R.E. 1983. Grouping lactating cows by nutritional requirements for feeding.
+  Journal of Dairy Science 66(5):1084-1093.
 
   k-means.js implementation from https://github.com/cmtt/kmeans-js
 
