@@ -38,33 +38,33 @@
 
   REFERENCES
 
-  Agabriel, J. 2010. Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables
-  INRA 2010. Editions Quae, France.
+  Agabriel, J. 2010. Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables INRA
+  2010. Editions Quae, France.
   
-  Feed into Milk 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
-  Ed. C. Thomas. Nottingham University Press, UK.
+  Feed into Milk Consortium. 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
+  Ed. Thomas, C. Nottingham University Press, UK.
   
   GfE [Society of Nutrition Physiology] 2001. Empfehlungen zur Energie- und Nährstoffversorgung der Milchkühe und
-  Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers] DLG-Verlag, Frankfurt/
+  Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers]. DLG-Verlag, Frankfurt/
   Main, Germany.
   
   Lebzien, P., Voigt, J., Gabel, M. und Gädeken, D. 1996. Zur Schätzung der Menge an nutzbarem Rohprotein am Duodenum
   von Milchkühen. [On the estimation of utilizable crude protein at the duodenum of dairy cows] Journal of Animal
   Physiology and Animal Nutrition 76:218-223.
   
-  MTT 2006. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations). Agrifood Research Finland,
-  Jokioninen, Finland, 84 p.
+  MTT. 2006. Rehutaulukot ja ruokintasuositukset [Feed tables and feeding recommendations]. Agrifood Research Finland,
+  Jokioninen, Finland.
   
-  MTT 2014. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations) [online]. Agrifood
+  MTT 2014. Rehutaulukot ja ruokintasuositukset [Feed tables and feeding recommendations] [online]. Agrifood
   Research Finland, Jokioinen. Accessed last on November 20, 2014, available at:
   https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
   
-  Schwab, G.C., Huhtanen, P., Hunt, C.W. and Hvelplund, T. 2005. Nitrogen requirements of cattle. Pages 13-70 in
-  Pfeffer, E., and Hristov, A.N. (ed.). Nitrogen and Phosphorus Nutrition of Cattle. CABI Publishing, Wallingford, UK.
+  Schwab, G.C., Huhtanen, P., Hunt, C.W. and Hvelplund, T. 2005. Nitrogen requirements of cattle. In: Pfeffer, E. and
+  Hristov, A.N. (ed.). Nitrogen and Phosphorus Nutrition of Cattle. CABI Publishing, Wallingford, UK. p. 13-70.
 
-  Tran, G. et Sauvant, D. 2002. Page 22 in Sauvant D., Perez J.-M. et Tran G. (eds.) Tables de composition et de
-  valeur nutritive des matières premières destinées aux animaux d´élevage: porcs, volailles, bovins, ovins, caprins,
-  lapins, chevaux, poissons. Paris, Inra-AFZ, France, 301 p.
+  Tran, G. et Sauvant, D. 2002. In: Sauvant D., Perez J.-M. et Tran G. (eds.) Tables de composition et de valeur
+  nutritive des matières premières destinées aux animaux d´élevage: porcs, volailles, bovins, ovins, caprins, lapins,
+  chevaux, poissons. Paris, Inra-AFZ, France. p. 22.
 
   LICENSE
 
