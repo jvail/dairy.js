@@ -28,18 +28,16 @@
 
   REFERENCES
 
-  Faverdin, P., Baratte, C., Delagarde, R. & Peyraud, J. L. (2011).
-  GrazeIn: a model of herbage intake and milk production for grazing dairy
-  cows. 1. Prediction of intake capacity, voluntary intake and milk
-  production during lactation. Grass and Forage Science 66(1): 29-44.
+  Faverdin, P., Baratte, C., Delagarde, R. and Peyraud, J.L. 2011. GrazeIn: a model of herbage intake and milk production
+  for grazing dairy cows. 1. Prediction of intake capacity, voluntary intake and milk production during lactation. Grass
+  and Forage Science 66(1):29-44.
 
-  Delagarde R, Faverdin P, Baratte C, Peyraud JL. (2011a). 
-  GrazeIn: A model of herbage intake and milk production for grazing dairy cows. 
-  2. Prediction of intake under rotational and continuously stocked grazing management. 
-  Grass and Forage Science 66: 45–60.
+  Delagarde, R., Faverdin, P., Baratte, C. and Peyraud, J.L. 2011a. GrazeIn: A model of herbage intake and milk production
+  for grazing dairy cows. 2. Prediction of intake under rotational and continuously stocked grazing management. Grass and
+  Forage Science 66(1):45–60.
 
-  Agabriel, J. (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs
-  des aliments. Tables INRA 2010. Editions Quae, France.
+  Agabriel, J. (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables INRA
+  2010. Editions Quae, France.
 
   LICENSE
 
