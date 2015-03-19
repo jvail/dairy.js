@@ -422,11 +422,11 @@ var GSR = function (QI_c, DEF, PLPOT, p, BWC, FVF) {
 /*
   Herbage intake prediction with GrazeIn:
   IC, FV_h -> HI_v
-  H -> HI_r_ssh
   H -> VI_max
   TAP, VI_max -> HI_r_tap 
   
   Continuous grazing:
+  H -> HI_r_ssh
   HI_r_ssh, HI_v -> HI_G1
   HI_r_tap, HI_r_ssh, HI_v -> HI_G2
   HI_G1, HI_G2 -> HI_G
@@ -439,6 +439,64 @@ var GSR = function (QI_c, DEF, PLPOT, p, BWC, FVF) {
   HI_r_tap, HI_r_ha, HI_v -> HI_G2
   HI_G1, HI_G2 -> HI_G
 */
+
+
+/*
+  HI_rg [kg (DM) day-1] herbage intake when grazing is rotational
+  IC    [LFU or CFU]    intake capacity ~ DMI @ FV = 1
+  FV_h  [LFU]           fill value herbage
+  A     [m2]            total area of paddock
+  H     [cm]            sward surface height
+  HM_2  [kg (DM) ha-1]  pre-grazing herbage mass above 2 cm ground level
+  HGR   [kg (DM) ha-1]  daily herbage growth rate
+  RT    [day]           residence time in the paddock
+  NCow  [#]             number of cows in the herds  
+  
+*/
+ 
+var HI_rg = function (IC, FV_h, H, HM_2, HGR, RT, NCow, TAP) {
+
+  var HI_v_ = HI_v(IC, FV_h)
+    , HA_2_ = HA_2(A, HM_2, HGR, RT, NCow)
+    , HA_r_ = HA_r(HA_2_, HI_v_)
+    , HI_r_ha_ = HI_r_ha(HA_r_)
+    , VI_max_ = VI_max(H)
+    , HI_r_tap_ = HI_r_tap(TAP, VI_max_)
+    , HI_G1_ = HI_G1(HI_v_, HI_r_ha_)
+    , HI_G2_ = HI_G2(HI_v_, HI_r_tap_, HI_r_ha_)
+    ;
+
+  return HI_g(HI_G1_, HI_G2_);
+
+};
+
+/*
+  HI_cg [kg (DM) day-1] herbage intake when grazing is continuous
+  IC    [LFU or CFU]    intake capacity ~ DMI @ FV = 1
+  FV_h  [LFU]           fill value herbage
+  A     [m2]            total area of paddock
+  H     [cm]            sward surface height
+  HM_2  [kg (DM) ha-1]  pre-grazing herbage mass above 2 cm ground level
+  HGR   [kg (DM) ha-1]  daily herbage growth rate
+  RT    [day]           residence time in the paddock
+  NCow  [#]             number of cows in the herds  
+  
+*/
+ 
+var HI_cg = function (IC, FV_h, H, TAP) {
+
+  var HI_v_ = HI_v(IC, FV_h)
+    , VI_max_ = VI_max(H)
+    , HI_r_tap_ = HI_r_tap(TAP, VI_max_)
+    , HI_r_ssh_ = HI_r_ssh(H)
+    , HI_G1_ = HI_G1(HI_v_, HI_r_ssh_)
+    , HI_G2_ = HI_G2(HI_v_, HI_r_tap_, HI_r_ssh_)
+    ;
+
+  return HI_g(HI_G1_, HI_G2);
+
+};
+
 
 /*
   Delagarde et al. (2011) eq. 13
@@ -482,7 +540,7 @@ var HI_r_ssh = function (H) {
   rotational or continuous.
 
   VI_max    [kg or LFU] maximum voluntary intake depending on available forage TODO: unit of VI_max
-  H         [cm]        sward surface height measured with a sward stick
+  H         [cm]        sward surface height
 */
 
 var VI_max = function (H) {
@@ -621,16 +679,8 @@ return {
   , FV_cs_diet: FV_cs_diet
   , GSR: GSR
   , DEF: DEF
-  , HI_r_ha: HI_r_ha
-  , HI_r_ssh: HI_r_ssh
-  , VI_max: VI_max
-  , HI_r_tap: HI_r_tap
-  , HI_v: HI_v
-  , HA_2: HA_2
-  , HA_r: HA_r
-  , HI_G1: HI_G1
-  , HI_G2: HI_G2
-  , HI_G: HI_G
+  , HI_rg: HI_rg 
+  , HI_cg: HI_cg 
 
 };
 
