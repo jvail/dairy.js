@@ -68,6 +68,7 @@ dairy.intake = (function () {
 var exp = Math.exp
   , log = Math.log
   , pow = Math.pow
+  , min = Math.min
   , Σ = function (a) {
       var sum = 0;
       for (var i = 0, is = a[0].length; i < is; i++)
@@ -251,8 +252,6 @@ var FV_c = function (FV_fs, GSR) {
 };
 
 /*
-  Baldinger et. al. (xxxx) eq. x
-
   Equation to estimate the fill value of forages in a diet from the cow's requirements prior to ration optimization.
   This is based on the fact that on average a feed's fill value will descrease with increasing energy content. The 
   estimated FV_fs is used to calculate a concentrate fill value (see FV_cs). We need it if we what to keep the diet LP 
@@ -275,8 +274,6 @@ var FV_fs_diet = function (E_fs, FV_fs, p) {
 };
 
 /*
-  Baldinger et. al. (xxxx) eq. x
-
   Estimate an average concentrate fill value. We assume that requirements are met i.e. cows with BWC >= 0 have a zero
   energy balance. 
 
@@ -423,11 +420,32 @@ var GSR = function (QI_c, DEF, PLPOT, p, BWC, FVF) {
 };
 
 /*
+  Herbage intake prediction with GrazeIn:
+  IC, FV_h -> HI_v
+  H -> HI_r_ssh
+  H -> VI_max
+  TAP, VI_max -> HI_r_tap 
+  
+  Continuous grazing:
+  HI_r_ssh, HI_v -> HI_G1
+  HI_r_tap, HI_r_ssh, HI_v -> HI_G2
+  HI_G1, HI_G2 -> HI_G
+
+
+  Rotational grazing:
+  A, HM_2, HGR, RT, NCow -> HA_2
+  HA_2, HI_v -> HA_r -> HI_r_ha
+  HI_r_ha, HI_v -> HI_G1
+  HI_r_tap, HI_r_ha, HI_v -> HI_G2
+  HI_G1, HI_G2 -> HI_G
+*/
+
+/*
   Delagarde et al. (2011) eq. 13
   Equation for relative herbage intake limited by allowance when grazing is rotational.
 
   When cows are not grazing, all necessary calculations are hereby completed and the feed intake restriction is:
-  DMI = sum of fill values of forages and concentrates multiplied with their amount (or share in the diet)
+  IC = sum of fill values of forages and concentrates multiplied with their amount (or share in the diet)
   When cows are grazing, their herbage intake can be restricted by sward availability or by time at grazing.
   For calculating the restriction caused by sward availability, there are two different calculations, one for rotational
   and one for continuous grazing.
@@ -541,12 +559,55 @@ var HA_2 = function (A, HM_2, HGR, RT, NCow) {
 
   HA_r  [-]             relative herbage allowance
   HA_2  [kg (DM) ha-1]  herbage allowance above 2 cm
-  HI_v  [LFU]           voluntary herbage intake
+  HI_v  [kg (DM) day-1] voluntary herbage intake
 */
 
 var HA_r = function (HA_2, HI_v) {
 
   return  HA_2 / HI_v;
+
+};
+
+/*
+  Delagarde et al. (2011) eqs. 22,24
+
+  HI_G1   [kg (DM)] intake from grazing (limited by availability)
+  HI_v    [kg (DM)] voluntary herbage intake
+  HI_r    [-]       HI_r_ha (rotational) or HI_r_ssh (continuously)
+*/
+
+var HI_G1 = function (HI_v, HI_r) {
+
+  return  HI_v * HI_r;
+
+};
+
+/*
+  Delagarde et al. (2011) eqs. 23,25
+
+  HI_G2     [kg (DM)] intake from grazing (limited by time at pasture)
+  HI_v      [kg (DM)] voluntary herbage intake
+  HI_r_tap  [-]       relative herbage intake limited by time at pasture (0-1)
+  HI_r      [-]       HI_r_ha (rotational) or HI_r_ssh (continuously)
+*/
+
+var HI_G2 = function (HI_v, HI_r_tap, HI_r) {
+
+  return  HI_v * HI_r_tap * HI_r;
+
+};
+
+/*
+  Delagarde et al. (2011) eq. 21
+
+  HI_G     [kg (DM)] intake from grazing
+  HI_G1    [kg (DM)] herbage intake (limited by limited by availability)
+  HI_G2    [kg (DM)] herbage intake (limited by limited by time at pasture)
+*/
+
+var HI_G = function (HI_G1, HI_G2) {
+
+  return  min(HI_G1, HI_G2);
 
 };
 
@@ -560,6 +621,16 @@ return {
   , FV_cs_diet: FV_cs_diet
   , GSR: GSR
   , DEF: DEF
+  , HI_r_ha: HI_r_ha
+  , HI_r_ssh: HI_r_ssh
+  , VI_max: VI_max
+  , HI_r_tap: HI_r_tap
+  , HI_v: HI_v
+  , HA_2: HA_2
+  , HA_r: HA_r
+  , HI_G1: HI_G1
+  , HI_G2: HI_G2
+  , HI_G: HI_G
 
 };
 
