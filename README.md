@@ -27,9 +27,9 @@ Vaillant, J. and Baldinger, L. 2014.
 [dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.](https://github.com/jvail/dairy.js/raw/master/doc/Vaillant_Poster_LiveM_Bilbao.pdf)
 Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
  
-Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
-Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
-Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+Baldinger, L.,  J. Vaillant, W. Zollitsch and M. Rinne (2015).
+Making a decision-support system for dairy farmers usable throughout Europe: the challenge of feed evaluation.
+Advances in Animal Biosciences, 6, pp 3-5. doi:10.1017/S2040470014000387. 
 
 ## License
 
