@@ -1,19 +1,27 @@
 /*
-  Calculate milk yield and solids adjusted for parity requiring estimates for parameters of Wood's lactation curve.
+  Body condition score, mobilization and body weight.
 
   REFERENCES
+  
+  Friggens, N.C., Ingvartsen, K.L. and Emmans, G.C. 2004. Prediction of body lipid change in pregnancy and lactation.
+  Journal of Dairy Science 87(4):988–1000.
+  
+  Johnson, I.R. 2008. Biophysical pasture model documentation: model documentation for DairyMod, EcoMod and the SGS
+  Pasture Model. IMJ Consultants, Armidale, NSW, Australia. p. 144. Available at:
+  http://imj.com.au/wp-content/uploads/2014/08/GrazeMod.pdf
+  
+  Johnson, I.R. 2013. DairyMod and the SGS Pasture Model: a mathematical description of the biophysical model structure.
+  IMJ Consultants, Darrigo, NSW, Australia. p. 120. Available at:
+  http://imj.com.au/wp-content/uploads/2014/08/DM_SGS_documentation.pdf
 
-  Wood, P.D.P. 1980.
-  Breed variations in the shape of the lactation curve of cattle and their implications for efficiency,
-  Animal Science, Volume 31, Issue 02, 1980, pp 133-141
+  Metzner, M., Heuwieser, W. und Klee, W. 1993. Die Beurteilung der Körperkondition (body condition scoring) im 
+  Herdenmanagement. Der praktische Tierarzt 74(11):991–998.
+  
+  Wright, I.A. and Russel, A.J.F. 1984a. Partition of fat, body composition and body condition score in mature cows.
+  Animal Science 38(1):23-32.
 
-  Tyrrell, H.F. et al. 1965.
-  Prediction of the Energy Value of Cow's Milk,
-  Journal of Dairy Science, Volume 48, Issue 9, 1215 - 1223
-
-  DLG-Information 1/2006.
-  Schätzung der Futteraufnahme bei der Milchkuh,
-  DLG-Arbeitskreis Futter und Fütterung
+  Wright, I.A. and Russel, A.J.F. 1984b. Estimation in vivo of the chemical composition of the bodies of mature cows.
+  Animal Science 38(1):33-44.
 
   LICENSE
 
@@ -22,12 +30,1967 @@
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to the article:
+  Any publication for which this file or a derived work is used must include an a reference to at least one source:
 
-  Baldinger, L., Vaillant, J., Zollitsch, W., Rinne, M. (2014) SOLID-DSS - Eine online-Anwendung zur verbesserten 
-  Abstimmung von Grundfutterangebot und -bedarf auf biologisch wirtschaftenden Low Input Milchviehbetrieben.
-  In: Wiesinger, K., Cais, K., Obermaier, S. (eds), Angewandte Forschung und Beratung für den ökologischen Landbau in 
-  Bayern: Öko-Landbau-Tag 2014 am 9. April 2014 in Triesdorf; Tagungsband. LfL, Freising-Weihenstephan, pp. 19-22.
+  Vaillant, J. and Baldinger, L. 2014. 
+  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
+  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+
+  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
+  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
+  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+
+  TODO:
+  - reference for "DAYS_ZERO_MOBILIZATION_AFTER_MILK_PEAK"
+  - improve BCS function
+  - implement either "full" Friggens approach or investigate how to "reasonably" relate mobilization, day max milk, day
+    min milk solids, day of conception ...
+*/
+
+var dairy = dairy || {};
+
+dairy.body = (function () {
+
+var pow = Math.pow
+  , log = Math.log
+  , exp = Math.exp
+  , DAYS_IN_MONTH = 30.5
+  , DAYS_ZERO_MOBILIZATION_AFTER_MILK_PEAK = 55
+  ;
+
+/*
+  Metzner et. al. (1993)
+
+  We assume BCS of BCS_max during dry period and a minimum BCS at day d_mx + 55.
+  BCS is everywhere expressed on a six point scale.
+
+  BCS     [-]     body condition score
+  DIM     [day]   days in milk
+  CI      [month] calving interval in month
+  DP      [day]   dry period in days
+  d_mx    [day]   day milk peaks
+*/
+ 
+var BCS = function (DIM, CI, DP, d_mx) {
+
+      /* BCS maximum */
+  var BCS_max = 3.5
+      /* BCS minimum */
+    , BCS_min = 3.0
+      /* calving interval in days */
+    , CI_d = CI * DAYS_IN_MONTH
+    , BCS = BCS_max
+    , BWC_0 = DAYS_ZERO_MOBILIZATION_AFTER_MILK_PEAK + d_mx
+    ;
+
+  if (DIM <= BWC_0)
+    BCS = BCS_max - ((BCS_max - BCS_min) / BWC_0) * DIM; 
+  else if (DIM <= CI_d - DP) 
+    BCS = BCS_min +  ((BCS_max - BCS_min) / (CI_d - DP - BWC_0)) * (DIM - BWC_0);
+
+  return BCS;
+
+};
+
+/*
+  Johnson (2008) eq. 7.8a
+
+  W       [kg]      weight of cow or young stock at day age
+  age     [day]     age in days
+  age_c1  [month]   age first calving
+  W_b     [kg]      weight of calf at birth 
+  W_c1    [kg kg-1] fraction (recommended) of mature body weight at first calving
+  W_m     [kg]      weight of mature cow 
+*/
+
+var W = function (age, age_c1, W_b, W_c1, W_m) {
+
+  var W = 0;
+
+  /* make sure W_c1 < 1 */
+  W_c1 = (W_c1 >= 1) ? 0.99 : W_c1;
+
+  /* growth parameter (solve W_m * W_c1 = W_m - (W_m - W_b) * exp(-k * age) for k) */
+  var k = log((W_b - W_m) / (W_m * (W_c1 - 1))) / (age_c1 * DAYS_IN_MONTH);
+
+  W = W_m - (W_m - W_b) * exp(-k * age);
+
+  /* make sure mature body weight is reached at some point (W_m is an asymptote) */ 
+  // W = (W >= W_m - 1) ? W_m : W; // TODO: round ?
+
+  return W;
+
+};
+
+/*
+  Johnson IR (2005 & 2008), eq. 7.6
+
+  Calf birth weight.
+
+  W_b [kg]  weight of calf at birth
+  W_m [kg]  weight of mature cow
+*/
+
+var W_b = function (W_m) {
+
+  var W_b = 0
+      /* parameters for cattle, table 7.3 */
+    , c_b = -2
+    , m_b = 0.066
+    ;
+
+  W_b = c_b + m_b * W_m;
+
+  return W_b;
+
+};
+
+/*
+  Wright, Russel (1984b) table 2, Wright, Russel (1984a) table 1 
+
+  Mobilization of body fat in early lactation.
+
+  TODO:
+    - body lipid change to body weight change conversion?
+
+  W_mob [kg]    mobilized body fat
+  W_m   [kg]    mature body weight
+  type  [enum]  cow type (milk or dual)
+*/
+
+var W_mob = function (W_m, type) {
+
+  var W_mob = 0
+    , b_1 = (type === 'dual' ? 52.3 : 84.2)
+    , BCS_mx = 3.5
+    , BCS_mn = 3.0
+    , W_ref = (type === 'dual' ? 542 : 560)
+    ;
+    
+  W_mob = b_1 * (BCS_mx - BCS_mn) * W_m / W_ref;
+
+  return W_mob;
+
+};
+
+/*  
+  Friggens et. al. (2004)
+
+  Body weight change of young stock and cows (dry or lactating). Simplified version of Friggens' approach.
+
+  We assume that..
+
+  * the day of zero mobilization is 55 days after milk peaks (d_0).
+  * either the cow mobilizes or gains weight, there is no longer period w/o weight change.
+  * a mature cow gains after d_0 the same amout of body weight she lost till day d_0.
+  * a growing cow will additionally gain the total body weight she should gain according to growth (W) function within
+    the total lactaion after d_0 (i.e. she will not grow during mobilization but compensate those "losses", "non-gains").
+
+  TODO:
+  - fat vs body weight (tissue). fat === body weight ?
+
+  BWC     [kg d-1]  body weight change
+  DPP     [day]     days post partum 
+  d_mx    [day]     day milk peaks
+  age     [day]     cow's age in days
+  CI      [m]       calving interval in month
+  W_m     [kg]      mature body weight
+  age_c1  [month]   age first calving
+  W_b     [kg]      weight of calf at birth 
+  W_c1    [kg kg-1] fraction (recommended) of mature body weight at first calving
+  type    [enum]    cow type (milk or dual)
+*/
+
+var BWC = function (DPP, d_mx, age, CI, W_m, age_c1, W_b, W_c1, type) {
+
+  var BWC = 0;
+
+  /* month to days */
+  CI = CI * DAYS_IN_MONTH;
+
+  /* day of zero mobilization */
+  var d_0 = d_mx + DAYS_ZERO_MOBILIZATION_AFTER_MILK_PEAK;
+
+  if (age < age_c1 * DAYS_IN_MONTH) { /* young stock */
+
+    BWC = W(age, age_c1, W_b, W_c1, W_m) - W(age - 1, age_c1, W_b, W_c1, W_m);
+
+  } else { /* cows */
+
+    /* body weight mobilized [kg] */
+    var mob = W_mob(W(age - DPP, age_c1, W_b, W_c1, W_m), type);
+  
+    if (DPP < d_0) { /* cow is mobilizing */
+
+      BWC = (2 * DPP * mob / pow(d_0, 2)) - (2 * mob / d_0);
+    
+    } else if (DPP > d_0) { /* cow is gaining weight */
+
+      /* total growth in between two calvings */
+      G = W(age - DPP + CI, age_c1, W_b, W_c1, W_m) - W(age - DPP, age_c1, W_b, W_c1, W_m);
+
+      /* growth weight gain at day age */
+      dG = 2 * G / pow(CI - d_0, 2) * (DPP - d_0);
+
+      /* weight gain reconstitution at day age */
+      dW_mob = 2 * mob / pow(CI - d_0, 2) * (DPP - d_0);
+
+      BWC = dG + dW_mob;
+
+    }
+  }
+
+  return BWC;
+
+};
+
+/*  
+  Friggens et. al. (2004)
+
+  Body weight change of young stock and cows (dry or lactating).
+
+  BW      [kg]      body weight at day age
+  DPP     [day]     days post partum 
+  d_mx    [day]     day milk peaks
+  age     [day]     cow's age in days
+  CI      [m]       calving interval in month
+  W_m     [kg]      mature body weight
+  age_c1  [month]   age first calving
+  W_b     [kg]      weight of calf at birth 
+  W_c1    [kg kg-1] fraction (recommended) of mature body weight at first calving
+  type    [enum]    cow type (milk or dual)
+*/
+
+var BW = function (DPP, d_mx, age, CI, W_m, age_c1, W_b, W_c1, type) {
+
+  var BW = 0;
+
+  /* month to days */
+  CI = CI * DAYS_IN_MONTH;
+
+  /* day of zero mobilization */
+  var d_0 = d_mx + DAYS_ZERO_MOBILIZATION_AFTER_MILK_PEAK;
+
+  if (age < age_c1 * DAYS_IN_MONTH) { /* young stock */
+
+    BW = W(age, age_c1, W_b, W_c1, W_m);
+
+  } else { /* cows */
+
+    /* body weight mobilized [kg] */
+    var mob = W_mob(W(age - DPP, age_c1, W_b, W_c1, W_m), type);
+  
+    /* body weight at begin of lactation */
+    BW = W(age - DPP, age_c1, W_b, W_c1, W_m);
+  
+    /* integral from 0 to DPP */
+    if (DPP < d_0) /* cow is mobilizing */
+      BW -= 2 * mob * (d_0 * DPP - pow(DPP, 2) / 2) / pow(d_0, 2);
+    else
+      BW -= mob;
+    
+    if (DPP > d_0) { /* cow is beyond d_0 */
+
+      /* total growth in between two calvings */
+      G = W(age - DPP + CI, age_c1, W_b, W_c1, W_m) - W(age - DPP, age_c1, W_b, W_c1, W_m);
+
+      /* integral growth weight gain */
+      BW += G * pow(d_0 - DPP, 2) / pow(d_0 - CI, 2);
+      // BW += (2 * G * (pow(DPP, 2) / 2 - d_0 * DPP) / pow(CI - d_0, 2));
+
+      /* integral weight gain reconstitution at day age */
+      BW += mob * pow(d_0 - DPP, 2) / pow(d_0 - CI, 2);
+      // BW += (2 * mob * (pow(DPP, 2) / 2 - d_0 * DPP) / pow(CI - d_0, 2));
+
+    }
+  }
+
+  return BW;
+
+};
+
+/*  
+  Body weight at calving
+
+  BW_c    [kg]      body weight at calving
+  DPP     [day]     days post partum 
+  age     [day]     cow's age in days
+  W_m     [kg]      mature body weight
+  age_c1  [month]   age first calving
+  W_b     [kg]      weight of calf at birth 
+  W_c1    [kg kg-1] fraction (recommended) of mature body weight at first calving
+*/
+
+var BW_c = function (DPP, age, W_m, age_c1, W_b, W_c1) {
+
+  return W(age - DPP, age_c1, W_b, W_c1, W_m);
+
+};
+
+return {
+
+    BWC: BWC
+  , weightChange: BWC
+  , BW: BW  
+  , weight: BW
+  , BW_c: BW_c  
+  , weightAtCalving: BW_c
+  , BCS: BCS
+  , conditionScore: BCS
+  , W: W
+  , weightPotential: W
+  , WB: W_b
+  , weightAtBirth: W_b
+
+};
+
+}());
+
+
+/*
+  Dairy diet calculation.
+
+  LICENSE
+
+  Copyright 2014 Jan Vaillant   <jan.vaillant@zalf.de>
+  Copyright 2014 Lisa Baldinger <lisa.baldinger@boku.ac.at>
+
+  Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
+
+  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+
+  Vaillant, J. and Baldinger, L. 2014. 
+  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
+  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+
+  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
+  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
+  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+*/
+
+var dairy = dairy || {};
+
+dairy.diet = (function () {
+
+var ENVIRONMENT_IS_NODE = typeof process === 'object' && typeof require === 'function'
+  , ENVIRONMENT_IS_WEB = typeof window === 'object'
+  , ENVIRONMENT_IS_WORKER = typeof importScripts === 'function'
+  , glpk = null
+  , callback = function (result) {};
+  ;
+
+/* GLPK 4.53 constants */
+var GLP_MIN = 1  /* minimization */
+  , GLP_MAX = 2  /* maximization */
+
+    /* kind of structural variable: */
+  , GLP_CV  = 1  /* continuous variable */
+  , GLP_IV  = 2  /* integer variable */
+  , GLP_BV  = 3  /* binary variable */
+
+    /* type of auxiliary/structural variable: */
+  , GLP_FR  = 1  /* free (unbounded) variable */
+  , GLP_LO  = 2  /* variable with lower bound */
+  , GLP_UP  = 3  /* variable with upper bound */
+  , GLP_DB  = 4  /* double-bounded variable */
+  , GLP_FX  = 5  /* fixed variable */
+
+  , GLP_MSG_OFF = 0  /* no output */
+  , GLP_MSG_ERR = 1  /* warning and error messages only */
+  , GLP_MSG_ON  = 2  /* normal output */
+  , GLP_MSG_ALL = 3  /* full output */
+  , GLP_MSG_DBG = 4  /* debug output */
+
+    /* solution status: */
+  , GLP_UNDEF  = 1  /* solution is undefined */
+  , GLP_FEAS   = 2  /* solution is feasible */
+  , GLP_INFEAS = 3  /* solution is infeasible */
+  , GLP_NOFEAS = 4  /* no feasible solution exists */
+  , GLP_OPT    = 5  /* solution is optimal */
+  , GLP_UNBND  = 6  /* solution is unbounded */
+  ;
+
+if (ENVIRONMENT_IS_NODE) {
+  glpk = require('./lib/glpk.js');
+} else if (ENVIRONMENT_IS_WEB) {
+  glpk = new Worker('./lib/glpk.js');
+  glpk.onmessage = function (evt) {
+
+    if (typeof evt.data === 'object')
+      callback(evt.data);
+    else
+      console.log(evt.data);
+
+  };
+}
+
+var get = function (cow, feeds, options) {
+
+  callback = options.cb;
+
+  var RNB_ub = options.RNB_ub
+    , RNB_lb = options.RNB_lb
+    , conc_mx = options.conc_mx /* should not be larger than 0.5 */
+    , eval_sys = options.eval_sys
+    , LP = {
+        name: name,
+        objective: {
+          direction: GLP_MAX,
+          name: 'obj',
+          vars: []
+        },
+        subjectTo: [],
+        bounds: []
+      }
+    ;
+
+  LP.objective.vars.push({
+    name: 'dE',
+    coef: -10 
+  });
+
+  LP.objective.vars.push({
+    name: 'sE',
+    coef: -10 
+  });
+
+  LP.objective.vars.push({
+    name: 'dP',
+    coef: -1 
+  });
+
+  LP.objective.vars.push({
+    name: 'sP',
+    coef: -1 
+  });
+
+  var subjectTo = [];
+
+  var E_const = {
+    name: 'E',
+    vars: [ 
+      { name: 'dE', coef:  1 },
+      { name: 'sE', coef: -1 },
+    ],
+    bnds: { type: GLP_FX, ub: 1.0, lb: 1.0 } 
+  }; 
+
+  var P_const = {
+    name: 'P',
+    vars: [ 
+      { name: 'dP', coef:  1 },
+      { name: 'sP', coef: -1 },
+    ],
+    bnds: { type: GLP_FX, ub: 1.0, lb: 1.0 } 
+  }; 
+
+  var RNB_bnd_type = -1;
+  if (RNB_lb === RNB_ub)
+    RNB_bnd_type = GLP_FX;
+  else if (RNB_lb === -Infinity && RNB_ub === Infinity)
+    RNB_bnd_type = GLP_FR;
+  else if (RNB_lb === -Infinity && RNB_ub < Infinity)
+    RNB_bnd_type = GLP_UP;
+  else if (RNB_lb > -Infinity && RNB_ub === Infinity)
+    RNB_bnd_type = GLP_LO;
+  else if (RNB_lb != -Infinity && RNB_ub != Infinity)
+    RNB_bnd_type = GLP_DB;
+
+  var RNB_const = {
+    name: 'RNB',
+    vars: [],
+    bnds: { 
+      type: RNB_bnd_type,
+      ub: RNB_ub,
+      lb: RNB_lb 
+    } 
+  };
+
+  var IC_const = {
+    name: 'IC',
+    vars: [],
+    bnds: { type: GLP_FX, ub: cow.IC, lb: cow.IC } 
+  };
+
+  var CC_const = {
+    name: 'CC',
+    vars: [],
+    bnds: { type: GLP_UP, ub: 0, lb: 0 } 
+  };
+
+  /* add selected feeds */
+  for (var f = 0, fs = feeds.length; f < fs; f++) {
+
+    var feed = feeds[f];
+
+    if (conc_mx === 0 && feed.type === 'concentrate')
+      continue;
+
+    E_const.vars.push({
+      name: 'F_' + feed.id,
+      coef: feed[eval_sys].E / cow.req[eval_sys].total.E
+    });
+
+    P_const.vars.push({
+      name: 'F_' + feed.id,
+      coef: feed.de.P / cow.req.de.total.P
+    });
+
+    RNB_const.vars.push({
+      name: 'F_' + feed.id,
+      coef: feed.de.RNB
+    });
+
+    if (feed.type === 'concentrate') {
+
+      IC_const.vars.push({
+        name: 'F_' + feed.id,
+        coef: cow.FV_c
+      });
+
+      CC_const.vars.push({
+        name: 'F_' + feed.id,
+        coef: (1 - conc_mx) / conc_mx
+      });
+
+    } else {
+
+      IC_const.vars.push({
+        name: 'F_' + feed.id,
+        coef: feed.fr.FV
+      });
+
+      CC_const.vars.push({
+        name: 'F_' + feed.id,
+        coef: -1
+      });
+
+    }
+
+  }    
+
+  subjectTo.push(E_const);
+  subjectTo.push(P_const);
+  subjectTo.push(RNB_const);
+    subjectTo.push(IC_const);
+  if (conc_mx > 0)
+    subjectTo.push(CC_const);
+
+  LP.subjectTo = subjectTo;
+
+  if (ENVIRONMENT_IS_NODE)
+    return glpk.solve(LP, GLP_MSG_ALL);
+  else if (ENVIRONMENT_IS_WEB && typeof callback === 'function')
+    return glpk.postMessage({ lp: LP, msg_lev: GLP_MSG_DBG });
+  else
+    return null;
+
+};
+
+return {
+  get: get
+};
+
+}());
+
+
+/*
+  Dairy cow grouping.
+
+  It creates groups a such that the total deviation of energy and protein requirements relative to the cow's intake 
+  capacity from the groups average is minimized (similar to McGilliard 1983). In the resulting groups animals in each 
+  group require a "similar" energy and protein density of the ration. The results of each run slightly defer depending on
+  the inital guess of k-means. Therefore it runs several times and returns the best result.
+
+  REFERENCES
+
+  McGilliard, M.L., Swisher, J.M. and James, R.E. 1983. Grouping lactating cows by nutritional requirements for feeding.
+  Journal of Dairy Science 66(5):1084-1093.
+
+  k-means.js implementation from https://github.com/cmtt/kmeans-js
+
+  LICENSE
+
+  Copyright 2014 Jan Vaillant   <jan.vaillant@zalf.de>
+  Copyright 2014 Lisa Baldinger <lisa.baldinger@boku.ac.at>
+
+  Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
+
+  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+
+  Vaillant, J. and Baldinger, L. 2014. 
+  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
+  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+
+  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
+  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
+  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+
+  TODO
+
+  - implement different strategies e.g. (req. intake capacity-1, absolute requirements, days in milk)
+*/
+
+var dairy = dairy || {};
+
+dairy.group = (function () {
+
+var round = Math.round
+  , floor = Math.floor
+  , random = Math.random
+  , log = Math.log
+  , pow = Math.pow
+  , sqrt = Math.sqrt
+  , distance =  function(a, b) {
+      return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
+    }
+    /* TODO: refactor original code from cmtt kmeans.. */
+  , sortBy = function (a, b, c) {
+      c = a.slice();
+      return c.sort(function (d, e) {
+        d = b(d);
+        e = b(e);
+        return (d < e ? -1 : d > e ? 1 : 0);
+      })
+    }
+  ;
+
+
+/* returns total of squared differences */ 
+
+var sumSquaredDifferences = function (points, centroids) {
+
+  var sum = 0
+    , ps = points.length
+    ;
+
+  for (var p = 0; p < ps; p++) {
+    var point = points[p]
+      , centroid = centroids[point.k]
+      , dif_x = pow(point.x - centroid.x, 2)
+      , dif_y = pow(point.y - centroid.y, 2)
+      ;
+    sum += dif_x + dif_y;
+  }
+
+  return sum;
+
+};
+
+/* nomalize (0-1) data. Coordinates in original data are altered */
+
+var doNormalize = function (points) {
+
+  var ps = points.length;
+
+  /* get minimum and maximum x */
+  points.sort(function (a, b) {
+    return a.x - b.x;
+  });
+
+  var x_min = points[0].x;
+  var x_max = points[ps - 1].x;
+
+  /* get minimum and maximum y */
+  points.sort(function (a, b) {
+    return a.y - b.y;
+  });
+
+  var y_min = points[0].y;
+  var y_max = points[ps - 1].y;
+
+  /* normalize */
+  for (var p = 0; p < ps; p++) {
+    var point = points[p];
+    point.x = (point.x - x_min) / (x_max - x_min);
+    point.y = (point.y - y_min) / (y_max - y_min);
+  }
+
+};
+
+/* k-means++ initialization from https://github.com/cmtt/kmeans-js */
+
+var kmeansplusplus = function (points, ks) {
+
+  var ps = points.length;
+
+  /* determine the amount of tries */
+  var D = []
+    , ntries = 2 + round(log(ks))
+    , centroids = []
+    ;
+
+  /* Choose one center uniformly at random from the data points. */
+  var p0 = points[floor(random() * ps)];
+
+  centroids.push({
+      x: p0.x
+    , y: p0.y
+    , k: 0
+  });
+
+  /* For each data point x, compute D(x), the distance between x and the nearest center that has already been chosen. */
+  for (i = 0; i < ps; ++i)
+    D[i] = pow(distance(p0, points[i]), 2);
+
+  var Dsum = D.reduce(function(a, b) {
+    return a + b;
+  });
+
+  /* Choose one new data point at random as a new center, using a weighted probability distribution where a point x is 
+    chosen with probability proportional to D(x)2. (Repeated until k centers have been chosen.) */
+  for (k = 1; k < ks; ++k) {
+
+    var bestDsum = -1, bestIdx = -1;
+
+    for (i = 0; i < ntries; ++i) {
+      var rndVal = floor(random() * Dsum);
+
+      for (var n = 0; n < ps; ++n) {
+        if (rndVal <= D[n]) {
+          break;
+        } else {
+          rndVal -= D[n];
+        }
+      }
+
+      var tmpD = [];
+      for (var m = 0; m < ps; ++m) {
+        cmp1 = D[m];
+        cmp2 = pow(distance(points[m], points[n]), 2);
+        tmpD[m] = cmp1 > cmp2 ? cmp2 : cmp1;
+      }
+
+      var tmpDsum = tmpD.reduce(function(a, b) {
+        return a + b;
+      });
+
+      if (bestDsum < 0 || tmpDsum < bestDsum) {
+        bestDsum = tmpDsum, bestIdx = n;
+      }
+    }
+
+    Dsum = bestDsum;
+
+    var centroid = {
+        x: points[bestIdx].x
+      , y: points[bestIdx].y
+      , k: k
+    };
+
+    centroids.push(centroid);
+
+    for (i = 0; i < ps; ++i) {
+      cmp1 = D[i];
+      cmp2 = pow(distance(points[bestIdx], points[i]), 2);
+      D[i] = cmp1 > cmp2 ? cmp2 : cmp1;
+    }
+  }
+
+  /* sort descending if x is energy density */
+  centroids.sort(function (a, b) {
+    return b.x - a.x;
+  });
+  
+  /* set k === index */
+  for (var c = 0, cs = centroids.length; c < cs; c++)
+    centroids[c].k = c;
+
+  return centroids;
+
+};
+
+var kmeans = function (points, centroids) {
+
+  var converged = false
+    , ks = centroids.length
+    , ps = points.length
+    ;
+
+  while (!converged) {
+    
+    var i;
+    converged = true;
+
+    /* Prepares the array of sums. */
+    var sums = [];
+    for (var k = 0; k < ks; k++)
+      sums[k] = { x: 0, y: 0, items: 0 };
+
+    /* Find the closest centroid for each point. */
+    for (var p = 0; p < ps; ++p) {
+
+      var distances = sortBy(centroids, function (centroid) {
+          return distance(centroid, points[p]);
+        });
+
+      var closestItem = distances[0];
+      var k = closestItem.k;
+
+      /* When the point is not attached to a centroid or the point was attached to some other centroid before,
+        the result differs from the previous iteration. */
+      if (typeof points[p].k  !== 'number' || points[p].k !== k)
+        converged = false;
+
+      /* Attach the point to the centroid */
+      points[p].k = k;
+
+      /* Add the points' coordinates to the sum of its centroid */
+      sums[k].x += points[p].x;
+      sums[k].y += points[p].y;
+
+      ++sums[k].items;
+    }
+
+    /* Re-calculate the center of the centroid. */
+    for (var k = 0; k < ks; ++k) {
+      if (sums[k].items > 0) {
+        centroids[k].x = sums[k].x / sums[k].items;
+        centroids[k].y = sums[k].y / sums[k].items;
+      }
+      centroids[k].items = sums[k].items;
+    }
+  }
+
+};
+
+var get = function (data, options) {
+
+  var ks = options.k
+    , runs = options.runs
+    , normalize = options.normalize
+    , xAttribute = options.xAttribute
+    , yAttribute = options.yAttribute
+    , points = data
+    , result = []
+    ;
+
+  if (typeof xAttribute === 'string' && xAttribute.length > 0
+    && typeof yAttribute === 'string' && yAttribute.length > 0) {
+    /* prepare data: add x, y property */
+    for (var p = 0, ps = data.length; p < ps; p++) {
+      points[p].x = data[p][xAttribute];
+      points[p].y = data[p][yAttribute];
+    }  
+  }
+
+  if (normalize)
+    doNormalize(points);
+
+  for (var run = 0; run < runs; run++) {  
+
+    /* stores result of each run */
+    result[run] = { centroids: [], sum: Infinity };
+    
+    /* inital guess */
+    var centroids = kmeansplusplus(points, ks);
+
+    /* store initial centroids from kmeans++ in order to re-run */
+    for(var k = 0; k < ks; k++) {
+      result[run].centroids[k] = { 
+        x: centroids[k].x, 
+        y: centroids[k].y
+      }
+    } 
+
+    /* run kmeans */
+    kmeans(points, centroids);
+
+    /* calculate differences */
+    result[run].sum = sumSquaredDifferences(points, centroids);
+ 
+  }
+
+  /* find best result */
+  result.sort(function (a, b) {
+    return a.sum - b.sum; 
+  });
+
+  /* re-use initial centroids produced by kmeans++ from best run */
+  centroids = [];
+  for (var k = 0; k < ks; k++) {
+    var centroid = {
+        x: result[0].centroids[k].x
+      , y: result[0].centroids[k].y
+      , k: k
+    };
+    centroids[k] = centroid;
+  }
+
+  /* run again with best initial centroids */
+  kmeans(points, centroids);
+
+  return sumSquaredDifferences(points, centroids);
+
+};
+
+return {
+  get: get
+};
+
+}());
+
+
+/*
+  Simple, deterministic herd structure model
+
+  LICENSE
+
+  Copyright 2014 Jan Vaillant   <jan.vaillant@zalf.de>
+  Copyright 2014 Lisa Baldinger <lisa.baldinger@boku.ac.at>
+
+  Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
+
+  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+
+  Vaillant, J. and Baldinger, L. 2014. 
+  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
+  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+
+  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
+  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
+  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+  
+  TODO
+  
+    - add calving pattern option (seasonal)
+    - add parity 4 (>3) to output
+*/
+
+var dairy = dairy || {};
+
+dairy.herd = (function () {
+
+var pow = Math.pow
+  , round = Math.round
+  , floor = Math.floor
+  , ceil = Math.ceil
+  , IT_MIN = 1e2 /* min iterations */
+  , IT_MAX = 1e6 /* max. iterations */
+  , WEEKS_IN_MONTH = 30.5 / 7
+  ;
+
+/* constant parameters with default values */
+var cons = {
+    ageFirstCalving: 24
+  , femaleCalfRate: 0.47
+  , stillBirthRate: 0.07
+  , youngStockCullRate: 0.155
+  , replacementRate: 0.30
+  , calvingInterval: 12.0
+  , herdSize: 100
+  , gestationPeriod: 9.0
+  , dryPeriode: 2.0
+};  
+
+/* variables */
+var vars = {
+    /* stores cow object of cows of same age in month per index 
+      age is month after first calving 
+      {
+          no:   no. of cows
+        , lac:  lactation no.
+        , dry:  if cow is dry
+        , WG:   week of gestation
+        , WL:   week of lactation  
+      } */
+    cows: []
+    /* no. of young stock per age month since birth */
+  , young: []
+    /* no. of cows */
+  , noCows: 0
+  , heifersBought: []
+  , heifersSold: []
+  , lac: []
+  , sim: []
+};
+
+/* 
+  run simulation until herd structure does not change anymore (or no. cows equals zero)
+  returns an array of with young stock count per age month and cows with
+  
+  lac [#]     lactation no.
+  dry [bool]  if cow is dry
+  WG  [#]     week of gestation
+  WL  [#]     week of lactation
+  age [month]
+
+  initialize parameters (object)
+
+  ageFirstCalving     [month]
+  femaleCalfRate      [-]     fraction female calfes of all calves born
+  stillBirthRate      [-]     fraction of dead born calves
+  youngStockCullRate  [-]     fraction of young stock that do not make it to 1st lactation
+  replacementRate     [-]     fraction of cows replaced each year
+  calvingInterval     [month] month inbetween clavings
+  herdSize            [#]     no. of cows in herd
+  gestationPeriod     [month] length gestation period
+  dryPeriode          [month] length dry period
+*/
+
+var get = function (options) {
+
+  /* overwrite default default values if provided and valid */
+  for (var prop in options) {
+    if (options.hasOwnProperty(prop))
+      cons[prop] = (typeof options[prop] === 'number' && !isNaN(options[prop])) ? options[prop] : cons[prop];
+  }
+
+  /* reset values */
+  vars.cows = [];
+  vars.young = [];
+  vars.noCows = 0;
+  vars.heifersBought = [];
+  vars.heifersSold = [];
+  vars.sim = [];
+
+  /* varriable shortcuts */
+  var ci = cons.calvingInterval
+    , hs = cons.herdSize
+    , dp = cons.dryPeriode
+    , gp = cons.gestationPeriod
+    , sb = cons.stillBirthRate
+    , yc = cons.youngStockCullRate
+    , fc = cons.femaleCalfRate
+    , ac = cons.ageFirstCalving
+    , rr = cons.replacementRate
+    , cows = vars.cows
+    , young = vars.young
+    , converged = false
+    , its = 0 /* no. iterations */
+    ;
+
+  /* initialize cow array with some meaningfull values to have a starting point
+    cows at age ageFirstCalving + m within calving interval. eqal distribution of status througout calvingInterval */
+  var l = 0;
+  while (l < 4) { /* just set cows up to lactation 4 (could be any) */ 
+    
+    for (var m = 0; m < ci; m++) {
+      cows[m + l * (ci - 1)] = { 
+          no: (hs / ci) / 4 /* devide by 4 because we only initialize for cows till fourth lactation */
+        , lac: l + 1
+        , dry: (m >= ci - dp) ? true : false
+        , WG: (m >= ci - gp) ? (ci - gp) * WEEKS_IN_MONTH : 0
+        , WL: (m >= ci - dp) ? 0 : m * WEEKS_IN_MONTH
+        , age: ac + ci * (l - 1) + m
+      };
+      vars.noCows += (hs / ci) / 4;
+    }
+
+    l++;
+  }
+
+  /* Initialize young stock array. Apply death rate equally distributed as compound interest: 
+    K_interest = K_start * (1 + p / 100)^n <=> p / 100 = (K_interest / K_start)^(1/n) - 1
+    K_start = (hs / ci) *  (1 - sb) * fc */
+  young[0] = (hs / ci) *  (1 - sb) * fc * pow(1 - yc, 1 / ac);
+  for (var m = 1; m < ac; m++)
+    young[m] = young[m - 1] * pow(1 - yc, 1 / ac); /* no. young stock per age month */
+
+  /* loop until converged i.e. avg. lactation within herd with no. cows equals herd size does not change anymore.
+    Each iteration step equals one month */
+  while (!converged) {
+
+    /* remove culled young stock */
+    for (var y = 0, ys = young.length; y < ys; y++)
+      young[y] = young[y] * pow(1 - yc, 1 / ac);
+
+    /* replacement per month; add newly replaced animals to the beginning of the array
+      all age classes within herd are equally replaced */
+
+    var newFemaleCalves = 0;
+    if (young[young.length - 1] > 0 ) { // heifers available
+      /* add new calves to young cattle */
+      /* from heifers */
+      newFemaleCalves += young[ac - 1] * (1 - sb) * fc;
+      /* from cows */
+    }
+
+    vars.noCows = 0;
+    /* start at age group previously c = 0 */
+    for (var c = 0, cs = cows.length; c < cs; c++) {
+
+      var cow = cows[c];
+
+      if (cow.no > 0) {
+
+        /* replacement */
+        cow.no = cow.no * (1 - (rr / 12)) // avg monthly replacement
+        cow.age++;
+
+        // update pregnancy, dry ...
+        if (!cow.dry) {
+          cow.WL += WEEKS_IN_MONTH;
+          if (cow.WG > 0) {
+            cow.WG += WEEKS_IN_MONTH;
+          } else {
+            if (cow.WL > (ci - gp) * WEEKS_IN_MONTH)
+            cow.WG = WEEKS_IN_MONTH;
+          }
+          /* check if now dry */
+          if (cow.WL > (ci - dp) * WEEKS_IN_MONTH) {
+            cow.WL = 0;
+            cow.dry = true;
+          }
+        } else { // dry cows
+          cow.WG += WEEKS_IN_MONTH;
+          /* check if cow calved */
+          if (cow.WG > gp * WEEKS_IN_MONTH) {
+            newFemaleCalves += cow.no * (1 - sb) * fc;
+            cow.lac += 1;
+            cow.dry = false;
+            cow.WG = 0;
+            cow.WL = 0;
+          }
+        }
+
+      }
+
+      vars.noCows += cow.no;
+
+    } // cows loop
+
+    /* no. available heifers form young stock */
+    var noHeifers = young.pop();
+    /* move only the no. of heifers that are needed to keep/reach total herdSize */
+    var noHeifersToHerd = (vars.noCows < hs) ? ((hs - vars.noCows < noHeifers) ? (hs - vars.noCows) : noHeifers) : 0;
+    vars.heifersSold.unshift(noHeifers - noHeifersToHerd);
+    
+    var noHeifersBought = 0;
+    if (noHeifersToHerd < hs - vars.noCows) {
+      noHeifersToHerd = hs - vars.noCows;
+      noHeifersBought = hs - vars.noCows + noHeifersToHerd;
+    }
+    vars.heifersBought.unshift(noHeifersBought);
+
+    cows.unshift({
+        no: noHeifersToHerd
+      , lac: 1
+      , dry: false
+      , WG: 0
+      , WL: 0
+      , age: ac
+    });
+
+    vars.noCows += noHeifersToHerd;
+
+    /* add new female calves at beginning of array and apply culling rate */
+    young.unshift(newFemaleCalves * pow(1 - yc, 1 / ac));
+
+    /* calculate cows per lactation */
+    vars.lac = [];
+    for (var c = 0, cs = cows.length; c < cs; c++) {
+      if (!vars.lac[cows[c].lac - 1]) 
+        vars.lac[cows[c].lac - 1] = 0;
+      vars.lac[cows[c].lac - 1] += cows[c].no;
+    }  
+
+    var lacSum = 0;
+    /* calculate avg. lactation */
+    for (var l = 0, ls = vars.lac.length; l < ls; l++) {
+      lacSum += vars.lac[l] * (l + 1);
+    }
+
+    /* debug max. lac 20 */
+    for (var l = 0; l < 20; l++) {
+      if (!vars.sim[l])
+        vars.sim[l] = [];
+      var no = vars.lac[l];
+      vars.sim[l].push(no ? no : 0);
+    }
+
+    if ((its > IT_MIN && round(vars.noCows) === hs && Math.round(avg_lac * 1e6) === round(lacSum / vars.noCows * 1e6)) 
+      || its > IT_MAX || round(vars.noCows) === 0 || isNaN(vars.noCows)) {
+      converged = true;
+    }
+
+    var avg_lac = lacSum / vars.noCows;
+    its++;
+
+  } /* simulation loop */
+
+  var herd = {
+      cowsPerLac: []
+    , cows: []
+    , sim: vars.sim
+    , heifersBought: round(vars.heifersBought[0])
+    , heifersSold: round(vars.heifersSold[0])
+    , young: []
+  };
+
+  /* add young stock */
+  for (var i = 0, is = vars.young.length; i < is; i++)
+    herd.young.push({ age: i + 1, no: round(vars.young[i]) });
+
+  /* we need only cows of parity 1, 2 or >2. Code below as option? */
+  // var sum = 0;
+  // for (var l = 0, ls = vars.lac.length; l < ls; l++) {
+  //   if (sum === hs)
+  //     break;
+  //   if (sum + ceil(vars.lac[l]) > hs)
+  //     herd.cowsPerLac[l] = hs - sum;
+  //   else  
+  //     herd.cowsPerLac[l] = ceil(vars.lac[l]);
+  //   sum += herd.cowsPerLac[l]; 
+  // }
+
+  herd.cowsPerLac[0] = round(vars.lac[0]);
+  herd.cowsPerLac[1] = round(vars.lac[1]);
+  herd.cowsPerLac[2] = hs - (herd.cowsPerLac[0] + herd.cowsPerLac[1]);
+
+  for (var l = 0, ls = herd.cowsPerLac.length; l < ls; l++) {
+    
+    var DPP_increment = ci * 30.5 / ((herd.cowsPerLac[l] === 1) ? Math.random() * ci : herd.cowsPerLac[l]);
+    var DPP = DPP_increment * 0.5;
+    
+    for (var c = 0, cs = herd.cowsPerLac[l]; c < cs; c++) {
+    
+      herd.cows.push({
+          DPP: round(DPP)
+        , isDry: (DPP > 30.5 * (ci - dp)) ? true : false  
+        , DIM: (DPP > 30.5 * (ci - dp)) ? 0 : round(DPP)  
+        , DG: (DPP - 30.5 * (ci - gp) > 0) ? round(DPP - 30.5 * (ci - gp)) : 0 
+        , AGE: round(ac + l * ci + DPP / 30.5) 
+        , AGE_days: round((ac + l * ci) * 30.5 + DPP) 
+        , P: l + 1
+      });
+
+      DPP += DPP_increment;
+
+    }
+
+  }
+
+  return herd;
+
+};
+
+return {
+  get: get
+};
+
+}());
+
+
+/*
+  Feed intake of cows and young stock is predicted according to the French fill value system described in Agabriel (2010).
+
+  The general functional principal of the INRA fill value system is as follows: The sum of all fill values of the feeds
+  equals the intake capacity of the animal. While the intake capacity of the animals is based on animal-related
+  parameters, the fill values of the feeds are based on feed-related parameters.
+
+  Although not mentioned in Delagarde et al. (2011), we assume that the feed intake restrictions that apply for
+  grazing dairy cows also apply for grazing heifers, because they are based on non-nutritional factors linked to sward
+  availability and grazing management, not on nutritional factors linked to animal characteristics.
+
+  The prediction of feed intake at grazing uses a simplified GrazeIn algorithm.
+
+  GrazeMore, "Improving sustainability of milk production systems in the European Union through increasing reliance on
+  grazed pasture" was an EU research project that ran from 2000-2004. It involved the development of a grazing decision
+  support system to assist farmers in improving the use of grazed grass for milk production. In order to build the DSS,
+  a European herbage growth prediction model and a European herbage intake prediction model were produced. Therefore
+  GrazeIn is the only currently available intake prediction for grazing cows that is based on European data.
+
+  The feed intake prediction in GrazeIn is based on the French INRA fill unit system and adapted to grazing dairy cows.
+  The authors argue that because European cows don´t graze all year long and are often supplemented, a general model of
+  intake is needed rather than one specialized on indoor feeding or grazing.
+
+  Because GrazeIn in based on the INRA fill value system, in some cases equations from Agabriel (2010) are used.
+
+  Fill values (FV) for cows are expressed in the unit LFU, lactating fill unit (UEL, unite encombrement lait) and CFU,
+  cattle fill unit (UEB, unite encombrement bovin) for young stock.
+
+  REFERENCES
+
+  Faverdin, P., Baratte, C., Delagarde, R. and Peyraud, J.L. 2011. GrazeIn: a model of herbage intake and milk production
+  for grazing dairy cows. 1. Prediction of intake capacity, voluntary intake and milk production during lactation. Grass
+  and Forage Science 66(1):29-44.
+
+  Delagarde, R., Faverdin, P., Baratte, C. and Peyraud, J.L. 2011a. GrazeIn: A model of herbage intake and milk production
+  for grazing dairy cows. 2. Prediction of intake under rotational and continuously stocked grazing management. Grass and
+  Forage Science 66(1):45–60.
+
+  Agabriel, J. (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables INRA
+  2010. Editions Quae, France.
+
+  LICENSE
+
+  Copyright 2014 Jan Vaillant   <jan.vaillant@zalf.de>
+  Copyright 2014 Lisa Baldinger <lisa.baldinger@boku.ac.at>
+
+  Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
+
+  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+
+  Vaillant, J. and Baldinger, L. 2014. 
+  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
+  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+
+  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
+  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
+  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+
+  TODO
+
+  - PLPOT in IC and GSR: is it zero for dry cows or still PLPOT?
+*/
+ 
+var dairy = dairy || {};
+
+dairy.intake = (function () {
+
+var exp = Math.exp
+  , log = Math.log
+  , pow = Math.pow
+  , min = Math.min
+  , Σ = function (a) {
+      var sum = 0;
+      for (var i = 0, is = a[0].length; i < is; i++)
+        sum += a[0][i] * a[1][i];
+      return sum;
+    }
+  ;
+
+function is_null_or_undefined (x) {
+  return x === null || x === undefined;
+}
+
+
+/*
+  TODO: Funktion rätselhaft, da DMI = Fs + Cs + HI_g
+
+  DMI   [kg]  dry matter intake
+  Fs    [kg]  array of feeds
+  FVs_f [LFU] array of forage fill values
+  Cs    [kg]  array of concentrates
+  Cs_f  [LFU] array of concentrate fill values
+  FV_h  [LFU] herbage fill value 
+  HI_r  [-]   relative herbage intake (0-1)
+  HI_g  [kg]  herbage intake at grazing
+*/
+
+var DMI = function (Fs, FVs_f, Cs, FVs_c, FV_h, HI_r, HI_g) {
+
+  var DMI = 0
+    , DMI_f = Σ([Fs, FVs_f])
+    , DMI_c = Σ([Cs, FVs_c])
+    ;
+
+  DMI = DMI_f + DMI_c + (FV_h/HI_r * HI_g);
+
+  return DMI;
+
+};
+
+/*
+  Agabriel (2010), eqs. 2.3 & 4.5
+
+  Equation to calculate the intake capacity.
+  
+  The intake capacity of the cow is not calculated acc. to Faverdin et al. (2011), because the appearance of MPprot
+  (potential milk production modified by protein intake) is problematic since protein intake is unkown at the time of
+  feed intake prediction. Instead, the previous Agabriel (2010) version is used:
+
+  In GrazeIn, Pl_pot represents the potential milk yield of a cow, not the actual milk yield. This is done in order
+  to avoid milk yield driving feed intake (pull-situation). In SOLID-DSS, values for milk yield are taken from the
+  lactation curves modelled within the herd model. These lactation curves are based on input by the user, and thereby
+  represent average milk yields instead of actual ones, so they can be interpreted as a potential under the given
+  circumstances.
+
+  IC    [LFU or CFU]  intake capacity ~ DMI @ FV = 1
+  BW    [kg]          body weight
+  PLPOT [kg day-1]    milk yield, potential
+  BCS   [-]           body condition score (1-5)
+  WL    [week]        week of lactation
+  WG    [week]        week of gestation (0-40)
+  AGE   [month]       age in month
+  p     [#]           parity
+*/
+
+var IC = function (BW, PLPOT, BCS, WL, WG, AGE, p) {
+
+  var IC = 0;
+
+  if (p > 0) { /* cows */
+
+    IC = (13.9 + (BW - 600) * 0.015 + PLPOT * 0.15 + (3 - BCS) * 1.5) * IL(p, WL) * IG(WG) * IM(AGE);
+  
+  } else if (p === 0) { /* young stock */
+
+    if (BW <= 150)
+      IC = 0.039 * pow(BW, 0.9) + 0.2;
+    else if (150 < BW <= 290)
+      IC = 0.039 * pow(BW, 0.9) + 0.1;
+    else
+      IC = 0.039 * pow(BW, 0.9);
+
+  }
+
+  return IC;
+
+}; 
+
+/*
+  Agabriel (2010) eq. 2.3f
+
+  The equation for the index of lactation. .
+
+  IL  [-]     index lactation (0-1)
+  p   [#]     parity
+  WL  [week]  week of lactation
+*/
+
+var IL = function IL(p, WL) {
+
+  /* if cow is dry IL = 1 */
+  var IL = 1;
+
+  if (p === 1 && WL > 0)
+    IL = 0.6 + (1 - 0.6) * (1 - exp(-0.16 * WL));
+  else if (p > 1 && WL > 0)
+    IL = 0.7 + (1 - 0.7) * (1 - exp(-0.16 * WL));
+
+  return IL;
+
+};
+
+/*
+  Agabriel (2010) eq. 2.3f
+
+  The equation for the index of gestation.
+  
+  IG  [-]     index gestation (0-1)
+  WG  [week]  week of gestation (0-40)
+*/
+
+var IG = function (WG) {
+
+  return 0.8 + 0.2 * (1 - exp(-0.25 * (40 - WG)));  
+
+};
+
+/*
+  Agabriel (2010) eq. 2.3f
+
+  The equation for the index of maturity.
+  
+  IM  [-]     index maturity (0-1)
+  AGE [month] month
+*/
+
+var IM = function (AGE) {
+
+  return -0.1 + 1.1 * (1 - exp(-0.08 * AGE));
+
+};
+
+/*
+  Agabriel (2010), Table 8.1.
+
+  The general equation for calculating forage fill values.
+
+  The QIL and QIB values are calculated in feed.evaluation, details see there.
+  
+  FV_f  [LFU or CFU kg-1 (DM)] forage fill value (is LFU for cows and CFU for young stock)
+  QIX   [g kg-1]               ingestibility in g per kg metabolic live weight (is QIL for cows and QIB for young stock)               
+  p     [#]                    parity
+*/
+
+var FV_f = function (QIX, p) {
+
+  if (p > 0) /* cows */
+    return 140 / QIX;
+  else       /* young stock */
+    return 95 / QIX
+
+};
+
+/*
+  Faverdin et al. (2011) eq. 11
+  
+  Equation for calculating concentrate fill value.
+
+  One of the factors influencing the concentrate fill value is the fill value of the forage base.
+  Because the total diet is unknown prior to the allocation of feeds, the weighted mean of the FV of all available
+  forages for the group of cows and the time period in question is used for FV_fr.
+
+  FV_c  [LFU or CFU kg-1 (DM)] concentrate fill value (lactating fill unit, unite encombrement lait)
+  FV_fs [LFU]                  weighted FV of forages in ration
+  GSR   [-]                    global substitution rate (0-1)
+*/
+
+var FV_c = function (FV_fs, GSR) {
+
+  return FV_fs * GSR;
+
+};
+
+/*
+  Equation to estimate the fill value of forages in a diet from the cow's requirements prior to ration optimization.
+  This is based on the fact that on average a feed's fill value will descrease with increasing energy content. The 
+  estimated FV_fs is used to calculate a concentrate fill value (see FV_cs). We need it if we what to keep the diet LP 
+  linear.
+  The regression was calculated from all forages available in Agabriel 2010. Details and R script in ../doc/FV_f.
+
+  FV_fs_diet  [LFU or CFU kg-1 (DM)] Estimated fill value of forages in diet
+  E_fs        [UFL]           Total energy content of forages in diet
+  FV_fs       [LFU]           Total fill values of forages in diet
+  p           [#]             parity
+*/
+
+var FV_fs_diet = function (E_fs, FV_fs, p) {
+
+  if (p > 0)
+    return -0.489 * E_fs / FV_fs + 1.433;
+  else
+    return -0.783 * E_fs / FV_fs + 1.688;
+
+};
+
+/*
+  Estimate an average concentrate fill value. We assume that requirements are met i.e. cows with BWC >= 0 have a zero
+  energy balance. 
+
+  TODO: 
+    - simplify to an equation?
+    - use this as a better estimate of DMI instead of DMI = IC (FV ~ 1)?
+
+  FV_cs_diet  [LFU kg-1 (DM)] estimated fill value of concentrates in diet
+  E_req       [UFL]           Energy requirements of a cow (in UFL!)
+  IC          [LFU]           Intake capacity of a cow
+  c_mx        [kg kg-1]       Maximum fraction (DM) of concentrates in diet (optional, defaults to 0.5 which is the 
+                              range the INRA system is applicable)
+  PLPOT       [kg day-1]      milk yield, potential
+  p           [#]             parity
+  BWC         [kg]            body weight change       
+*/
+
+var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, p, BWC) {
+
+  var FV_cs_diet = 0;
+
+  if (is_null_or_undefined(c_mx) || c_mx > 0.5)
+    c_mx = 0.5;
+      
+  var c = 0       /* fraction of conc. in diet [kg (DM) kg-1 (DM)] */
+    , c_kg = 0    /* kg conc. in diet */
+    , E_f = E_req /* energy requirements covered by forage */
+    , IC_f = IC   /* IC covered by forage */
+    , c_fvs = []  /* store conc. fill values */
+    , c_fv = 0    /* estimated conc. fill value */
+    , f_fv = 0    /* estimated forage fill value */
+    , s = 0       /* substitution rate */
+    ;
+
+  /* fixed to a max. UFL / UEL value observed in feeds */
+  if (E_f / IC_f > 1.15)
+    E_f = E_req = IC_f * 1.15;  
+
+  while (true) {
+
+    /* staring from a diet with zero kg conc. we add conc. till we reach c_mx */
+    f_fv = FV_fs_diet(E_f, IC_f, p);
+    s = GSR(c_kg, DEF(E_f, IC_f), PLPOT, p, BWC, f_fv);
+    c_fv = f_fv * s;
+    c = c_kg / (IC_f / f_fv + c_kg);
+
+    if (c >= c_mx)
+      break;
+
+    c_fvs.push(c_fv);
+
+    /* add concentrate to the diet */
+    c_kg += 0.5;
+    /* we assume the concentrate's UFL content is 1.05. In fact the result is not very sensitive to UFL of conc. */
+    E_f = E_req - c_kg * 1.05;
+    IC_f = IC - c_kg * c_fv;
+
+  }
+
+  /* average */
+  FV_cs_diet = c_fvs.reduce(function (a, b, i, array) { return a + b / array.length; }, 0);
+
+  return FV_cs_diet;
+
+};
+
+/*
+  Agabriel (2010) eq. 2.25
+
+  DEF is the average energy density of the forages in the diet, which is calculated as the weighted mean of all
+  available forages for the group of cows and the time period in question.
+
+  DEF     [UFL LFU-1 or CFU-1]    average energy density of the forages in the diet (can be slightly higher than 1)
+  UFL_fs  [UFL kg-1 (DM)]         sum of the energy contents of all available forages
+  FV_fs   [LFU or CFU kg-1 (DM)]  sum of the fill values of all available forages
+*/
+
+var DEF = function (UFL_fs, FV_fs) {
+
+  return UFL_fs / FV_fs;
+
+};
+
+/*
+  Agabriel (2010) eq. 2.26 &  Table 1.2
+
+  Both in Agabriel (2010) and in GrazeIn, concentrate fill values not only vary with the fill value of the forage base,
+  but also with the amount of concentrates, the milk yield of the cow and the energy balance of the cow, which are
+  all incorporated into the calculation of the global substitution rate (GSR). Consequently, concentrate fill values
+  and feed intake are calcalated iteratively until the system converges.
+  In SOLID-DSS, no iterative calculation is possible because all fill values must stay constant when the linear
+  programming starts to allocate feeds. Therefore the simplified version of calculating GSR that can be found in
+  Agabriel (2010) was chosen. According to this version, there is one calculation fo GSR when cows are not mobilizing,
+  and a different calculation when cows are mobilizing.
+
+  For QI_c, the maximum of concentrates the user is willing to feed is used, because we assume that those cows that are
+  mobilizing will receive the maximum concentrate supplementation.
+  
+  For dairy heifers, the global substitution rate also depends on the fill value of the forage base. Agabriel (2010)
+  doesn´t supply equations for calculating GSR, but gives a Table (1.2) with discrete values. Based on these values, a
+  linear regression for the calculation of GSR was produced which is valid for fill values of the forage base between
+  0.95 and 1.4 and which assumes a concentrate proportion of 15%. The coefficient of determination of the linear
+  regression is 0.99.
+
+  TODO: replace BWC with something like "energy balance of the cow is negative"
+
+  GSR   [-]                   global substitution rate (0-1)
+  QI_c  [kg (DM)]             total amount of concentrates that are fed
+  DEF   [UFL LFU-1 or CFU-1]  average energy density of the forages in the diet (can be slightly higher than 1)
+  PLPOT [kg day-1]            milk yield, potential
+  p     [#]                   parity
+  BWC   [kg]                  body weight change
+  FVF   [CFU kg-1]            forage fill value in diet (only needed if p = 0 i.e. youg stock)          
+*/
+
+var GSR = function (QI_c, DEF, PLPOT, p, BWC, FVF) {
+
+  var GSR = 1
+    , GSR_zero = 0.55
+    , d = (p > 1 ? 1.10 : 0.96)
+    ;
+
+  if (p === 0 && !is_null_or_undefined(FVF)) { /* young stock */
+
+    GSR = 1.765 - 1.318 * FVF;
+
+  } else { /* cows */
+
+    /* should be larger 0 (dry cows have a pot. milk yield as well) */
+    if (PLPOT <= 0)
+      PLPOT = 1;
+
+    GSR_zero = d * pow(PLPOT, -0.62) * exp(1.32 * DEF);
+
+    if (BWC < 0) /* energy balance of the cow is negative, irrespective of the reason */
+      GSR = -0.43 + 1.82 * GSR_zero + 0.035 * QI_c - 0.00053 * PLPOT * QI_c;
+    else
+      GSR = GSR_zero;
+  
+  }
+
+  return GSR;
+
+};
+
+/*
+  Herbage intake prediction with GrazeIn:
+  IC, FV_h -> HI_v
+  H -> VI_max
+  TAP, VI_max -> HI_r_tap 
+  
+  Continuous grazing:
+  H -> HI_r_ssh
+  HI_r_ssh, HI_v -> HI_G1
+  HI_r_tap, HI_r_ssh, HI_v -> HI_G2
+  HI_G1, HI_G2 -> HI_G
+
+
+  Rotational grazing:
+  A, HM_2, HGR, RT, NCow -> HA_2
+  HA_2, HI_v -> HA_r -> HI_r_ha
+  HI_r_ha, HI_v -> HI_G1
+  HI_r_tap, HI_r_ha, HI_v -> HI_G2
+  HI_G1, HI_G2 -> HI_G
+*/
+
+
+/*
+  HI_rg [kg (DM) day-1] herbage intake when grazing is rotational
+  IC    [LFU or CFU]    intake capacity ~ DMI @ FV = 1
+  FV_h  [LFU]           fill value herbage
+  A     [m2]            total area of paddock
+  H     [cm]            sward surface height
+  HM_2  [kg (DM) ha-1]  pre-grazing herbage mass above 2 cm ground level
+  HGR   [kg (DM) ha-1]  daily herbage growth rate
+  RT    [day]           residence time in the paddock
+  NCow  [#]             number of cows in the herds  
+  
+*/
+ 
+var HI_rg = function (IC, FV_h, H, HM_2, HGR, RT, NCow, TAP) {
+
+  var HI_v_ = HI_v(IC, FV_h)
+    , HA_2_ = HA_2(A, HM_2, HGR, RT, NCow)
+    , HA_r_ = HA_r(HA_2_, HI_v_)
+    , HI_r_ha_ = HI_r_ha(HA_r_)
+    , VI_max_ = VI_max(H)
+    , HI_r_tap_ = HI_r_tap(TAP, VI_max_)
+    , HI_G1_ = HI_G1(HI_v_, HI_r_ha_)
+    , HI_G2_ = HI_G2(HI_v_, HI_r_tap_, HI_r_ha_)
+    ;
+
+  return HI_g(HI_G1_, HI_G2_);
+
+};
+
+/*
+  HI_cg [kg (DM) day-1] herbage intake when grazing is continuous
+  IC    [LFU or CFU]    intake capacity ~ DMI @ FV = 1
+  FV_h  [LFU]           fill value herbage
+  A     [m2]            total area of paddock
+  H     [cm]            sward surface height
+  HM_2  [kg (DM) ha-1]  pre-grazing herbage mass above 2 cm ground level
+  HGR   [kg (DM) ha-1]  daily herbage growth rate
+  RT    [day]           residence time in the paddock
+  NCow  [#]             number of cows in the herds  
+  
+*/
+ 
+var HI_cg = function (IC, FV_h, H, TAP) {
+
+  var HI_v_ = HI_v(IC, FV_h)
+    , VI_max_ = VI_max(H)
+    , HI_r_tap_ = HI_r_tap(TAP, VI_max_)
+    , HI_r_ssh_ = HI_r_ssh(H)
+    , HI_G1_ = HI_G1(HI_v_, HI_r_ssh_)
+    , HI_G2_ = HI_G2(HI_v_, HI_r_tap_, HI_r_ssh_)
+    ;
+
+  return HI_g(HI_G1_, HI_G2);
+
+};
+
+
+/*
+  Delagarde et al. (2011) eq. 13
+  Equation for relative herbage intake limited by allowance when grazing is rotational.
+
+  When cows are not grazing, all necessary calculations are hereby completed and the feed intake restriction is:
+  IC = sum of fill values of forages and concentrates multiplied with their amount (or share in the diet)
+  When cows are grazing, their herbage intake can be restricted by sward availability or by time at grazing.
+  For calculating the restriction caused by sward availability, there are two different calculations, one for rotational
+  and one for continuous grazing.
+
+  HI_r_ha [-] relative herbage intake limited by herbage allowance when grazing is rotational (0-1)
+  HA_r    [-] relative herbage allowance
+*/
+ 
+var HI_r_ha = function (HA_r) {
+
+  return 1.08 * (1 - exp(-1.519 * HA_r));
+
+};
+
+/*
+  Delagarde et al. (2011) eq. 15
+
+  Equation for calculating herbage intake restricted by sward availability when grazing is continuous.
+
+  HI_r_ssh  [-]   relative herbage intake limited by sward surface height when grazing is continuous (0-1)
+  H         [cm]  sward surface height measured with a sward stick
+*/
+
+var HI_r_ssh = function (H) {
+
+  return -1 + 0.5 * H - 0.233 * log(1 + exp(2 * H - 7.38)) - 0.033 * log(1 + exp(H - 11));
+
+};
+
+/*
+  Delagarde et al. (2011) eq. 17
+
+  Herbage intake can also be restricted by time at pasture. If this is the case, it does not matter if grazing is
+  rotational or continuous.
+
+  VI_max    [kg or LFU] maximum voluntary intake depending on available forage TODO: unit of VI_max
+  H         [cm]        sward surface height
+*/
+
+var VI_max = function (H) {
+
+  return 0.058 + 0.0062 * (H - log(1 + exp(H - 22.9)));
+
+};
+
+/*
+  Delagarde et al. (2011) eq. 16
+
+  Equation for relative herbage intake limited by time at pasture.
+  
+  HI_r_tap  [-]         relative herbage intake limited by time at pasture (0-1)
+  TAP       [h day-1]   time at pasture
+  VI_max    [kg or LFU] maximum voluntary intake depending on available forage TODO: unit of VI_max
+*/
+
+var HI_r_tap = function (TAP, VI_max) {
+
+  var HI_r_tap = 1;
+
+  if (TAP <= 20)
+    HI_r_tap = (VI_max * TAP) - (VI_max - 0.008) * log(1 + exp(TAP - (0.845 / (VI_max - 0.008))));
+
+  return HI_r_tap;
+
+};
+
+/*
+  The theoretical, maximum intake of herbage when nothing is supplemented and there is no restriction whatsoever can be
+  calculated by dividing the intake capacity with the fill value of herbage.
+
+  HI_v  [kg (DM) day-1] voluntary herbage intake
+  IC    [LFU]           intake capacity
+  FV_h  [LFU]           fill value herbage
+*/
+
+var HI_v = function (IC, FV_h) {
+
+  return IC / FV_h; 
+
+};
+
+/*
+  Delagarde et al. (2011) eq. 14
+
+  Equation for herbage allowance above 2 cm taken.
+
+  In GrazeIn, the available herbage mass is defined as everything above 2 cm above ground, because it is assumed that
+  cows cannot graze the 2 cm closest to the ground.
+
+  HA_2  [kg (DM) ha-1]  herbage allowance above 2 cm
+  A     [m2]            total area of paddock
+  HM_2  [kg (DM) ha-1]  pre-grazing herbage mass above 2 cm ground level
+  HGR   [kg (DM) ha-1]  daily herbage growth rate
+  RT    [day]           residence time in the paddock
+  NCow  [#]             number of cows in the herds           
+*/
+
+var HA_2 = function (A, HM_2, HGR, RT, NCow) {
+
+  return A * (HM_2 + (0.5 * HGR * RT)) / (1000 * RT * NCow);
+
+};
+
+/*
+  Delagarde et al. (2011) eq. 12
+
+  Equation for relative herbage allowance taken.
+
+  The relative herhage allowance can be calculated by dividing the available herbage mass above 2 cm above ground with
+  the voluntary herbage intake of the cow.
+
+  HA_r  [-]             relative herbage allowance
+  HA_2  [kg (DM) ha-1]  herbage allowance above 2 cm
+  HI_v  [kg (DM) day-1] voluntary herbage intake
+*/
+
+var HA_r = function (HA_2, HI_v) {
+
+  return  HA_2 / HI_v;
+
+};
+
+/*
+  Delagarde et al. (2011) eqs. 22,24
+
+  HI_G1   [kg (DM)] intake from grazing (limited by availability)
+  HI_v    [kg (DM)] voluntary herbage intake
+  HI_r    [-]       HI_r_ha (rotational) or HI_r_ssh (continuously)
+*/
+
+var HI_G1 = function (HI_v, HI_r) {
+
+  return  HI_v * HI_r;
+
+};
+
+/*
+  Delagarde et al. (2011) eqs. 23,25
+
+  HI_G2     [kg (DM)] intake from grazing (limited by time at pasture)
+  HI_v      [kg (DM)] voluntary herbage intake
+  HI_r_tap  [-]       relative herbage intake limited by time at pasture (0-1)
+  HI_r      [-]       HI_r_ha (rotational) or HI_r_ssh (continuously)
+*/
+
+var HI_G2 = function (HI_v, HI_r_tap, HI_r) {
+
+  return  HI_v * HI_r_tap * HI_r;
+
+};
+
+/*
+  Delagarde et al. (2011) eq. 21
+
+  HI_G     [kg (DM)] intake from grazing
+  HI_G1    [kg (DM)] herbage intake (limited by limited by availability)
+  HI_G2    [kg (DM)] herbage intake (limited by limited by time at pasture)
+*/
+
+var HI_G = function (HI_G1, HI_G2) {
+
+  return  min(HI_G1, HI_G2);
+
+};
+
+return {
+
+    DMI: DMI
+  , IC: IC
+  , FV_f: FV_f
+  , FV_c: FV_c
+  , FV_fs_diet: FV_fs_diet
+  , FV_cs_diet: FV_cs_diet
+  , GSR: GSR
+  , DEF: DEF
+  , HI_rg: HI_rg 
+  , HI_cg: HI_cg 
+
+};
+
+}());
+
+
+/*
+  Calculate milk yield and solids adjusted for parity requiring estimates for parameters of Wood's lactation curve.
+
+  REFERENCES
+
+  Wood, P.D.P. 1980. Breed variations in the shape of the lactation curve of cattle and their implications for
+  efficiency. Animal Production 31(2):133-141.
+
+  Tyrrell, H.F. and Reid, J.T. 1965. Prediction of the energy value of cow's milk. Journal of Dairy Science 48(9):
+  1215-1223.
+
+  DLG. 2006. Schätzung der Futteraufnahme bei der Milchkuh [Estimating feed intake of dairy cows]. DLG-Information
+  1/2006. DLG-Verlag, Frankfurt/Main, Germany. p. 29.
+
+  LICENSE
+
+  Copyright 2014 Jan Vaillant   <jan.vaillant@zalf.de>
+  Copyright 2014 Lisa Baldinger <lisa.baldinger@boku.ac.at>
+
+  Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
+
+  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+
+  Vaillant, J. and Baldinger, L. 2014. 
+  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
+  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+
+  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
+  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
+  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
 */
  
 var dairy = dairy || {};
@@ -404,949 +2367,45 @@ return {
 
 
 /*
-  Body condition score, mobilization and body weight.
-
-  REFERENCES
-
-  Metzner, M, Heuwieser, W. und W. Klee, 1993. Die Beurteilung der Körperkondition (body condition scoring) im 
-  Herdenmanagement. Der praktische Tierarzt 11, 991–998
-
-  Friggens NC, Ingvartsen KL and Emmans GC 2004. Prediction of body lipid change in pregnancy and lactation.
-  Journal of Dairy Science 87, 988–1000.
-
-  Johnson IR (2008). Biophysical pasture model documentation: model documentation for DairyMod, EcoMod and the SGS 
-  Pasture Model. (IMJ Consultants: Dorrigo, NSW) (http://imj.com.au/gmdocs/)
-
-  Wright, Russel 1984. Estimation in vivo of the chemical composition of the bodies of mature cows.
-
-  LICENSE
-
-  Copyright 2014 Jan Vaillant   <jan.vaillant@zalf.de>
-  Copyright 2014 Lisa Baldinger <lisa.baldinger@boku.ac.at>
-
-  Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
-
-  Any publication for which this file or a derived work is used must include an a reference to the article:
-
-  Baldinger, L., Vaillant, J., Zollitsch, W., Rinne, M. (2014) SOLID-DSS - Eine online-Anwendung zur verbesserten 
-  Abstimmung von Grundfutterangebot und -bedarf auf biologisch wirtschaftenden Low Input Milchviehbetrieben.
-  In: Wiesinger, K., Cais, K., Obermaier, S. (eds), Angewandte Forschung und Beratung für den ökologischen Landbau in 
-  Bayern: Öko-Landbau-Tag 2014 am 9. April 2014 in Triesdorf; Tagungsband. LfL, Freising-Weihenstephan, pp. 19-22.
-
-  TODO:
-  - reference for "DAYS_ZERO_MOBILIZATION_AFTER_MILK_PEAK"
-  - improve BCS function
-  - implement either "full" Friggens approach or investigate how to "reasonably" relate mobilization, day max milk, day
-    min milk solids, day of conception ...
-*/
-
-var dairy = dairy || {};
-
-dairy.body = (function () {
-
-var pow = Math.pow
-  , log = Math.log
-  , exp = Math.exp
-  , DAYS_IN_MONTH = 30.5
-  , DAYS_ZERO_MOBILIZATION_AFTER_MILK_PEAK = 55
-  ;
-
-/*
-  Metzner et. al. (1993)
-
-  We assume BCS of BCS_max during dry period and a minimum BCS at day d_mx + 55.
-  BCS is everywhere expressed on a six point scale.
-
-  BCS     [-]     body condition score
-  DIM     [day]   days in milk
-  CI      [month] calving interval in month
-  DP      [day]   dry period in days
-  d_mx    [day]   day milk peaks
-*/
- 
-var BCS = function (DIM, CI, DP, d_mx) {
-
-      /* BCS maximum */
-  var BCS_max = 3.5
-      /* BCS minimum */
-    , BCS_min = 3.0
-      /* calving interval in days */
-    , CI_d = CI * DAYS_IN_MONTH
-    , BCS = BCS_max
-    , BWC_0 = DAYS_ZERO_MOBILIZATION_AFTER_MILK_PEAK + d_mx
-    ;
-
-  if (DIM <= BWC_0)
-    BCS = BCS_max - ((BCS_max - BCS_min) / BWC_0) * DIM; 
-  else if (DIM <= CI_d - DP) 
-    BCS = BCS_min +  ((BCS_max - BCS_min) / (CI_d - DP - BWC_0)) * (DIM - BWC_0);
-
-  return BCS;
-
-};
-
-/*
-  Johnson (2008) eq. 7.8a
-
-  W       [kg]      weight of cow or young stock at day age
-  age     [day]     age in days
-  age_c1  [month]   age first calving
-  W_b     [kg]      weight of calf at birth 
-  W_c1    [kg kg-1] fraction (recommended) of mature body weight at first calving
-  W_m     [kg]      weight of mature cow 
-*/
-
-var W = function (age, age_c1, W_b, W_c1, W_m) {
-
-  var W = 0;
-
-  /* make sure W_c1 < 1 */
-  W_c1 = (W_c1 >= 1) ? 0.99 : W_c1;
-
-  /* growth parameter (solve W_m * W_c1 = W_m - (W_m - W_b) * exp(-k * age) for k) */
-  var k = log((W_b - W_m) / (W_m * (W_c1 - 1))) / (age_c1 * DAYS_IN_MONTH);
-
-  W = W_m - (W_m - W_b) * exp(-k * age);
-
-  /* make sure mature body weight is reached at some point (W_m is an asymptote) */ 
-  // W = (W >= W_m - 1) ? W_m : W; // TODO: round ?
-
-  return W;
-
-};
-
-/*
-  Johnson IR (2005 & 2008), eq. 7.6
-
-  Calf birth weight.
-
-  W_b [kg]  weight of calf at birth
-  W_m [kg]  weight of mature cow
-*/
-
-var W_b = function (W_m) {
-
-  var W_b = 0
-      /* parameters for cattle, table 7.3 */
-    , c_b = -2
-    , m_b = 0.066
-    ;
-
-  W_b = c_b + m_b * W_m;
-
-  return W_b;
-
-};
-
-/*
-  Wright, Russel (1984b) table 2, Wright, Russel (1984a) table 1 
-
-  Mobilization of body fat in early lactation.
-
-  TODO:
-    - body lipid change to body weight change conversion?
-
-  W_mob [kg]    mobilized body fat
-  W_m   [kg]    mature body weight
-  type  [enum]  cow type (milk or dual)
-*/
-
-var W_mob = function (W_m, type) {
-
-  var W_mob = 0
-    , b_1 = (type === 'dual' ? 52.3 : 84.2)
-    , BCS_mx = 3.5
-    , BCS_mn = 3.0
-    , W_ref = (type === 'dual' ? 542 : 560)
-    ;
-    
-  W_mob = b_1 * (BCS_mx - BCS_mn) * W_m / W_ref;
-
-  return W_mob;
-
-};
-
-/*  
-  Friggens et. al. (2004)
-
-  Body weight change of young stock and cows (dry or lactating). Simplified version of Friggens' approach.
-
-  We assume that..
-
-  * the day of zero mobilization is 55 days after milk peaks (d_0).
-  * either the cow mobilizes or gains weight, there is no longer period w/o weight change.
-  * a mature cow gains after d_0 the same amout of body weight she lost till day d_0.
-  * a growing cow will additionally gain the total body weight she should gain according to growth (W) function within
-    the total lactaion after d_0 (i.e. she will not grow during mobilization but compensate those "losses", "non-gains").
-
-  TODO:
-  - fat vs body weight (tissue). fat === body weight ?
-
-  BWC     [kg d-1]  body weight change
-  DPP     [day]     days post partum 
-  d_mx    [day]     day milk peaks
-  age     [day]     cow's age in days
-  CI      [m]       calving interval in month
-  W_m     [kg]      mature body weight
-  age_c1  [month]   age first calving
-  W_b     [kg]      weight of calf at birth 
-  W_c1    [kg kg-1] fraction (recommended) of mature body weight at first calving
-  type    [enum]    cow type (milk or dual)
-*/
-
-var BWC = function (DPP, d_mx, age, CI, W_m, age_c1, W_b, W_c1, type) {
-
-  var BWC = 0;
-
-  /* month to days */
-  CI = CI * DAYS_IN_MONTH;
-
-  /* day of zero mobilization */
-  var d_0 = d_mx + DAYS_ZERO_MOBILIZATION_AFTER_MILK_PEAK;
-
-  if (age < age_c1 * DAYS_IN_MONTH) { /* young stock */
-
-    BWC = W(age, age_c1, W_b, W_c1, W_m) - W(age - 1, age_c1, W_b, W_c1, W_m);
-
-  } else { /* cows */
-
-    /* body weight mobilized [kg] */
-    var mob = W_mob(W(age - DPP, age_c1, W_b, W_c1, W_m), type);
-  
-    if (DPP < d_0) { /* cow is mobilizing */
-
-      BWC = (2 * DPP * mob / pow(d_0, 2)) - (2 * mob / d_0);
-    
-    } else if (DPP > d_0) { /* cow is gaining weight */
-
-      /* total growth in between two calvings */
-      G = W(age - DPP + CI, age_c1, W_b, W_c1, W_m) - W(age - DPP, age_c1, W_b, W_c1, W_m);
-
-      /* growth weight gain at day age */
-      dG = 2 * G / pow(CI - d_0, 2) * (DPP - d_0);
-
-      /* weight gain reconstitution at day age */
-      dW_mob = 2 * mob / pow(CI - d_0, 2) * (DPP - d_0);
-
-      BWC = dG + dW_mob;
-
-    }
-  }
-
-  return BWC;
-
-};
-
-/*  
-  Friggens et. al. (2004)
-
-  Body weight change of young stock and cows (dry or lactating).
-
-  BW      [kg]      body weight at day age
-  DPP     [day]     days post partum 
-  d_mx    [day]     day milk peaks
-  age     [day]     cow's age in days
-  CI      [m]       calving interval in month
-  W_m     [kg]      mature body weight
-  age_c1  [month]   age first calving
-  W_b     [kg]      weight of calf at birth 
-  W_c1    [kg kg-1] fraction (recommended) of mature body weight at first calving
-  type    [enum]    cow type (milk or dual)
-*/
-
-var BW = function (DPP, d_mx, age, CI, W_m, age_c1, W_b, W_c1, type) {
-
-  var BW = 0;
-
-  /* month to days */
-  CI = CI * DAYS_IN_MONTH;
-
-  /* day of zero mobilization */
-  var d_0 = d_mx + DAYS_ZERO_MOBILIZATION_AFTER_MILK_PEAK;
-
-  if (age < age_c1 * DAYS_IN_MONTH) { /* young stock */
-
-    BW = W(age, age_c1, W_b, W_c1, W_m);
-
-  } else { /* cows */
-
-    /* body weight mobilized [kg] */
-    var mob = W_mob(W(age - DPP, age_c1, W_b, W_c1, W_m), type);
-  
-    /* body weight at begin of lactation */
-    BW = W(age - DPP, age_c1, W_b, W_c1, W_m);
-  
-    /* integral from 0 to DPP */
-    if (DPP < d_0) /* cow is mobilizing */
-      BW -= 2 * mob * (d_0 * DPP - pow(DPP, 2) / 2) / pow(d_0, 2);
-    else
-      BW -= mob;
-    
-    if (DPP > d_0) { /* cow is beyond d_0 */
-
-      /* total growth in between two calvings */
-      G = W(age - DPP + CI, age_c1, W_b, W_c1, W_m) - W(age - DPP, age_c1, W_b, W_c1, W_m);
-
-      /* integral growth weight gain */
-      BW += G * pow(d_0 - DPP, 2) / pow(d_0 - CI, 2);
-      // BW += (2 * G * (pow(DPP, 2) / 2 - d_0 * DPP) / pow(CI - d_0, 2));
-
-      /* integral weight gain reconstitution at day age */
-      BW += mob * pow(d_0 - DPP, 2) / pow(d_0 - CI, 2);
-      // BW += (2 * mob * (pow(DPP, 2) / 2 - d_0 * DPP) / pow(CI - d_0, 2));
-
-    }
-  }
-
-  return BW;
-
-};
-
-/*  
-  Body weight at calving
-
-  BW_c    [kg]      body weight at calving
-  DPP     [day]     days post partum 
-  age     [day]     cow's age in days
-  W_m     [kg]      mature body weight
-  age_c1  [month]   age first calving
-  W_b     [kg]      weight of calf at birth 
-  W_c1    [kg kg-1] fraction (recommended) of mature body weight at first calving
-*/
-
-var BW_c = function (DPP, age, W_m, age_c1, W_b, W_c1) {
-
-  return W(age - DPP, age_c1, W_b, W_c1, W_m);
-
-};
-
-return {
-
-    BWC: BWC
-  , weightChange: BWC
-  , BW: BW  
-  , weight: BW
-  , BW_c: BW_c  
-  , weightAtCalving: BW_c
-  , BCS: BCS
-  , conditionScore: BCS
-  , W: W
-  , weightPotential: W
-  , WB: W_b
-  , weightAtBirth: W_b
-
-};
-
-}());
-
-
-/*
-  Feed intake of cows and young stock is predicted according to the French fill value system described in Agabriel (2010).
-
-  The general functional principal of the INRA fill value system is as follows: The sum of all fill values of the feeds
-  equals the intake capacity of the animal. While the intake capacity of the animals is based on animal-related
-  parameters, the fill values of the feeds are based on feed-related parameters.
-
-  Although not mentioned in Delagarde et al. (2011), we assume that the feed intake restrictions that apply for
-  grazing dairy cows also apply for grazing heifers, because they are based on non-nutritional factors linked to sward
-  availability and grazing management, not on nutritional factors linked to animal characteristics.
-
-  The prediction of feed intake at grazing uses a simplified GrazeIn algorithm.
-
-  GrazeMore, "Improving sustainability of milk production systems in the European Union through increasing reliance on
-  grazed pasture" was an EU research project that ran from 2000-2004. It involved the development of a grazing decision
-  support system to assist farmers in improving the use of grazed grass for milk production. In order to build the DSS,
-  a European herbage growth prediction model and a European herbage intake prediction model were produced. Therefore
-  GrazeIn is the only currently available intake prediction for grazing cows that is based on European data.
-
-  The feed intake prediction in GrazeIn is based on the French INRA fill unit system and adapted to grazing dairy cows.
-  The authors argue that because European cows don´t graze all year long and are often supplemented, a general model of
-  intake is needed rather than one specialized on indoor feeding or grazing.
-
-  Because GrazeIn in based on the INRA fill value system, in some cases equations from Agabriel (2010) are used.
-
-  Fill values (FV) for cows are expressed in the unit LFU, lactating fill unit (UEL, unite encombrement lait) and CFU,
-  cattle fill unit (UEB, unite encombrement bovin) for young stock.
-
-  REFERENCES
-
-  Faverdin, P., Baratte, C., Delagarde, R. & Peyraud, J. L. (2011).
-  GrazeIn: a model of herbage intake and milk production for grazing dairy
-  cows. 1. Prediction of intake capacity, voluntary intake and milk
-  production during lactation. Grass and Forage Science 66(1): 29-44.
-
-  Delagarde R, Faverdin P, Baratte C, Peyraud JL. (2011a). 
-  GrazeIn: A model of herbage intake and milk production for grazing dairy cows. 
-  2. Prediction of intake under rotational and continuously stocked grazing management. 
-  Grass and Forage Science 66: 45–60.
-
-  Agabriel, J. (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs
-  des aliments. Tables INRA 2010. Editions Quae, France.
-
-  LICENSE
-
-  Copyright 2014 Jan Vaillant   <jan.vaillant@zalf.de>
-  Copyright 2014 Lisa Baldinger <lisa.baldinger@boku.ac.at>
-
-  Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
-
-  Any publication for which this file or a derived work is used must include an a reference to the article:
-
-  Baldinger, L., Vaillant, J., Zollitsch, W., Rinne, M. (2014) SOLID-DSS - Eine online-Anwendung zur verbesserten 
-  Abstimmung von Grundfutterangebot und -bedarf auf biologisch wirtschaftenden Low Input Milchviehbetrieben.
-  In: Wiesinger, K., Cais, K., Obermaier, S. (eds), Angewandte Forschung und Beratung für den ökologischen Landbau in 
-  Bayern: Öko-Landbau-Tag 2014 am 9. April 2014 in Triesdorf; Tagungsband. LfL, Freising-Weihenstephan, pp. 19-22.
-
-  TODO
-
-  - PLPOT in IC and GSR: is it zero for dry cows or still PLPOT?
-*/
- 
-var dairy = dairy || {};
-
-dairy.intake = (function () {
-
-var exp = Math.exp
-  , log = Math.log
-  , pow = Math.pow
-  , Σ = function (a) {
-      var sum = 0;
-      for (var i = 0, is = a[0].length; i < is; i++)
-        sum += a[0][i] * a[1][i];
-      return sum;
-    }
-  ;
-
-function is_null_or_undefined (x) {
-  return x === null || x === undefined;
-}
-
-
-/*
-  TODO: Funktion rätselhaft, da DMI = Fs + Cs + HI_g
-
-  DMI   [kg]  dry matter intake
-  Fs    [kg]  array of feeds
-  FVs_f [LFU] array of forage fill values
-  Cs    [kg]  array of concentrates
-  Cs_f  [LFU] array of concentrate fill values
-  FV_h  [LFU] herbage fill value 
-  HI_r  [-]   relative herbage intake (0-1)
-  HI_g  [kg]  herbage intake at grazing
-*/
-
-var DMI = function (Fs, FVs_f, Cs, FVs_c, FV_h, HI_r, HI_g) {
-
-  var DMI = 0
-    , DMI_f = Σ([Fs, FVs_f])
-    , DMI_c = Σ([Cs, FVs_c])
-    ;
-
-  DMI = DMI_f + DMI_c + (FV_h/HI_r * HI_g);
-
-  return DMI;
-
-};
-
-/*
-  Agabriel (2010), eqs. 2.3 & 4.5
-
-  Equation to calculate the intake capacity.
-  
-  The intake capacity of the cow is not calculated acc. to Faverdin et al. (2011), because the appearance of MPprot
-  (potential milk production modified by protein intake) is problematic since protein intake is unkown at the time of
-  feed intake prediction. Instead, the previous Agabriel (2010) version is used:
-
-  In GrazeIn, Pl_pot represents the potential milk yield of a cow, not the actual milk yield. This is done in order
-  to avoid milk yield driving feed intake (pull-situation). In SOLID-DSS, values for milk yield are taken from the
-  lactation curves modelled within the herd model. These lactation curves are based on input by the user, and thereby
-  represent average milk yields instead of actual ones, so they can be interpreted as a potential under the given
-  circumstances.
-
-  IC    [LFU or CFU]  intake capacity ~ DMI @ FV = 1
-  BW    [kg]          body weight
-  PLPOT [kg day-1]    milk yield, potential
-  BCS   [-]           body condition score (1-5)
-  WL    [week]        week of lactation
-  WG    [week]        week of gestation (0-40)
-  AGE   [month]       age in month
-  p     [#]           parity
-*/
-
-var IC = function (BW, PLPOT, BCS, WL, WG, AGE, p) {
-
-  var IC = 0;
-
-  if (p > 0) { /* cows */
-
-    IC = (13.9 + (BW - 600) * 0.015 + PLPOT * 0.15 + (3 - BCS) * 1.5) * IL(p, WL) * IG(WG) * IM(AGE);
-  
-  } else if (p === 0) { /* young stock */
-
-    if (BW <= 150)
-      IC = 0.039 * pow(BW, 0.9) + 0.2;
-    else if (150 < BW <= 290)
-      IC = 0.039 * pow(BW, 0.9) + 0.1;
-    else
-      IC = 0.039 * pow(BW, 0.9);
-
-  }
-
-  return IC;
-
-}; 
-
-/*
-  Agabriel (2010) eq. 2.3f
-
-  The equation for the index of lactation. .
-
-  IL  [-]     index lactation (0-1)
-  p   [#]     parity
-  WL  [week]  week of lactation
-*/
-
-var IL = function IL(p, WL) {
-
-  /* if cow is dry IL = 1 */
-  var IL = 1;
-
-  if (p === 1 && WL > 0)
-    IL = 0.6 + (1 - 0.6) * (1 - exp(-0.16 * WL));
-  else if (p > 1 && WL > 0)
-    IL = 0.7 + (1 - 0.7) * (1 - exp(-0.16 * WL));
-
-  return IL;
-
-};
-
-/*
-  Agabriel (2010) eq. 2.3f
-
-  The equation for the index of gestation.
-  
-  IG  [-]     index gestation (0-1)
-  WG  [week]  week of gestation (0-40)
-*/
-
-var IG = function (WG) {
-
-  return 0.8 + 0.2 * (1 - exp(-0.25 * (40 - WG)));  
-
-};
-
-/*
-  Agabriel (2010) eq. 2.3f
-
-  The equation for the index of maturity.
-  
-  IM  [-]     index maturity (0-1)
-  AGE [month] month
-*/
-
-var IM = function (AGE) {
-
-  return -0.1 + 1.1 * (1 - exp(-0.08 * AGE));
-
-};
-
-/*
-  Agabriel (2010), Table 8.1.
-
-  The general equation for calculating forage fill values.
-
-  The QIL and QIB values are calculated in feed.evaluation, details see there.
-  
-  FV_f  [LFU or CFU kg-1 (DM)] forage fill value (is LFU for cows and CFU for young stock)
-  QIX   [g kg-1]               ingestibility in g per kg metabolic live weight (is QIL for cows and QIB for young stock)               
-  p     [#]                    parity
-*/
-
-var FV_f = function (QIX, p) {
-
-  if (p > 0) /* cows */
-    return 140 / QIX;
-  else       /* young stock */
-    return 95 / QIX
-
-};
-
-/*
-  Faverdin et al. (2011) eq. 11
-  
-  Equation for calculating concentrate fill value.
-
-  One of the factors influencing the concentrate fill value is the fill value of the forage base.
-  Because the total diet is unknown prior to the allocation of feeds, the weighted mean of the FV of all available
-  forages for the group of cows and the time period in question is used for FV_fr.
-
-  FV_c  [LFU or CFU kg-1 (DM)] concentrate fill value (lactating fill unit, unite encombrement lait)
-  FV_fs [LFU]                  weighted FV of forages in ration
-  GSR   [-]                    global substitution rate (0-1)
-*/
-
-var FV_c = function (FV_fs, GSR) {
-
-  return FV_fs * GSR;
-
-};
-
-/*
-  Baldinger et. al. (xxxx) eq. x
-
-  Equation to estimate the fill value of forages in a diet from the cow's requirements prior to ration optimization.
-  This is based on the fact that on average a feed's fill value will descrease with increasing energy content. The 
-  estimated FV_fs is used to calculate a concentrate fill value (see FV_cs). We need it if we what to keep the diet LP 
-  linear.
-  The regression was calculated from all forages available in Agabriel 2010. Details and R script in ../doc/FV_f.
-
-  FV_fs_diet  [LFU or CFU kg-1 (DM)] Estimated fill value of forages in diet
-  E_fs        [UFL]           Total energy content of forages in diet
-  FV_fs       [LFU]           Total fill values of forages in diet
-  p           [#]             parity
-*/
-
-var FV_fs_diet = function (E_fs, FV_fs, p) {
-
-  if (p > 0)
-    return -0.489 * E_fs / FV_fs + 1.433;
-  else
-    return -0.783 * E_fs / FV_fs + 1.688;
-
-};
-
-/*
-  Baldinger et. al. (xxxx) eq. x
-
-  Estimate an average concentrate fill value. We assume that requirements are met i.e. cows with BWC >= 0 have a zero
-  energy balance. 
-
-  TODO: 
-    - simplify to an equation?
-    - use this as a better estimate of DMI instead of DMI = IC (FV ~ 1)?
-
-  FV_cs_diet  [LFU kg-1 (DM)] estimated fill value of concentrates in diet
-  E_req       [UFL]           Energy requirements of a cow (in UFL!)
-  IC          [LFU]           Intake capacity of a cow
-  c_mx        [kg kg-1]       Maximum fraction (DM) of concentrates in diet (optional, defaults to 0.5 which is the 
-                              range the INRA system is applicable)
-  PLPOT       [kg day-1]      milk yield, potential
-  p           [#]             parity
-  BWC         [kg]            body weight change       
-*/
-
-var FV_cs_diet = function (E_req, IC, c_mx, PLPOT, p, BWC) {
-
-  var FV_cs_diet = 0;
-
-  if (is_null_or_undefined(c_mx) || c_mx > 0.5)
-    c_mx = 0.5;
-      
-  var c = 0       /* fraction of conc. in diet [kg (DM) kg-1 (DM)] */
-    , c_kg = 0    /* kg conc. in diet */
-    , E_f = E_req /* energy requirements covered by forage */
-    , IC_f = IC   /* IC covered by forage */
-    , c_fvs = []  /* store conc. fill values */
-    , c_fv = 0    /* estimated conc. fill value */
-    , f_fv = 0    /* estimated forage fill value */
-    , s = 0       /* substitution rate */
-    ;
-
-  /* fixed to a max. UFL / UEL value observed in feeds */
-  if (E_f / IC_f > 1.15)
-    E_f = E_req = IC_f * 1.15;  
-
-  while (true) {
-
-    /* staring from a diet with zero kg conc. we add conc. till we reach c_mx */
-    f_fv = FV_fs_diet(E_f, IC_f, p);
-    s = GSR(c_kg, DEF(E_f, IC_f), PLPOT, p, BWC, f_fv);
-    c_fv = f_fv * s;
-    c = c_kg / (IC_f / f_fv + c_kg);
-
-    if (c >= c_mx)
-      break;
-
-    c_fvs.push(c_fv);
-
-    /* add concentrate to the diet */
-    c_kg += 0.5;
-    /* we assume the concentrate's UFL content is 1.05. In fact the result is not very sensitive to UFL of conc. */
-    E_f = E_req - c_kg * 1.05;
-    IC_f = IC - c_kg * c_fv;
-
-  }
-
-  /* average */
-  FV_cs_diet = c_fvs.reduce(function (a, b, i, array) { return a + b / array.length; }, 0);
-
-  return FV_cs_diet;
-
-};
-
-/*
-  Agabriel (2010) eq. 2.25
-
-  DEF is the average energy density of the forages in the diet, which is calculated as the weighted mean of all
-  available forages for the group of cows and the time period in question.
-
-  DEF     [UFL LFU-1 or CFU-1]    average energy density of the forages in the diet (can be slightly higher than 1)
-  UFL_fs  [UFL kg-1 (DM)]         sum of the energy contents of all available forages
-  FV_fs   [LFU or CFU kg-1 (DM)]  sum of the fill values of all available forages
-*/
-
-var DEF = function (UFL_fs, FV_fs) {
-
-  return UFL_fs / FV_fs;
-
-};
-
-/*
-  Agabriel (2010) eq. 2.26 &  Table 1.2
-
-  Both in Agabriel (2010) and in GrazeIn, concentrate fill values not only vary with the fill value of the forage base,
-  but also with the amount of concentrates, the milk yield of the cow and the energy balance of the cow, which are
-  all incorporated into the calculation of the global substitution rate (GSR). Consequently, concentrate fill values
-  and feed intake are calcalated iteratively until the system converges.
-  In SOLID-DSS, no iterative calculation is possible because all fill values must stay constant when the linear
-  programming starts to allocate feeds. Therefore the simplified version of calculating GSR that can be found in
-  Agabriel (2010) was chosen. According to this version, there is one calculation fo GSR when cows are not mobilizing,
-  and a different calculation when cows are mobilizing.
-
-  For QI_c, the maximum of concentrates the user is willing to feed is used, because we assume that those cows that are
-  mobilizing will receive the maximum concentrate supplementation.
-  
-  For dairy heifers, the global substitution rate also depends on the fill value of the forage base. Agabriel (2010)
-  doesn´t supply equations for calculating GSR, but gives a Table (1.2) with discrete values. Based on these values, a
-  linear regression for the calculation of GSR was produced which is valid for fill values of the forage base between
-  0.95 and 1.4 and which assumes a concentrate proportion of 15%. The coefficient of determination of the linear
-  regression is 0.99.
-
-  TODO: replace BWC with something like "energy balance of the cow is negative"
-
-  GSR   [-]                   global substitution rate (0-1)
-  QI_c  [kg (DM)]             total amount of concentrates that are fed
-  DEF   [UFL LFU-1 or CFU-1]  average energy density of the forages in the diet (can be slightly higher than 1)
-  PLPOT [kg day-1]            milk yield, potential
-  p     [#]                   parity
-  BWC   [kg]                  body weight change
-  FVF   [CFU kg-1]            forage fill value in diet (only needed if p = 0 i.e. youg stock)          
-*/
-
-var GSR = function (QI_c, DEF, PLPOT, p, BWC, FVF) {
-
-  var GSR = 1
-    , GSR_zero = 0.55
-    , d = (p > 1 ? 1.10 : 0.96)
-    ;
-
-  if (p === 0 && !is_null_or_undefined(FVF)) { /* young stock */
-
-    GSR = 1.765 - 1.318 * FVF;
-
-  } else { /* cows */
-
-    /* should be larger 0 (dry cows have a pot. milk yield as well) */
-    if (PLPOT <= 0)
-      PLPOT = 1;
-
-    GSR_zero = d * pow(PLPOT, -0.62) * exp(1.32 * DEF);
-
-    if (BWC < 0) /* energy balance of the cow is negative, irrespective of the reason */
-      GSR = -0.43 + 1.82 * GSR_zero + 0.035 * QI_c - 0.00053 * PLPOT * QI_c;
-    else
-      GSR = GSR_zero;
-  
-  }
-
-  return GSR;
-
-};
-
-/*
-  Delagarde et al. (2011) eq. 13
-  Equation for relative herbage intake limited by allowance when grazing is rotational.
-
-  When cows are not grazing, all necessary calculations are hereby completed and the feed intake restriction is:
-  DMI = sum of fill values of forages and concentrates multiplied with their amount (or share in the diet)
-  When cows are grazing, their herbage intake can be restricted by sward availability or by time at grazing.
-  For calculating the restriction caused by sward availability, there are two different calculations, one for rotational
-  and one for continuous grazing.
-
-  HI_r_ha [-] relative herbage intake limited by herbage allowance when grazing is rotational (0-1)
-  HA_r    [-] relative herbage allowance
-*/
- 
-var HI_r_ha = function (HA_r) {
-
-  return 1.08 * (1 - exp(-1.519 * HA_r));
-
-};
-
-/*
-  Delagarde et al. (2011) eq. 15
-
-  Equation for calculating herbage intake restricted by sward availability when grazing is continuous.
-
-  HI_r_ssh  [-]   relative herbage intake limited by sward surface height when grazing is continuous (0-1)
-  H         [cm]  sward surface height measured with a sward stick
-*/
-
-var HI_r_ssh = function (H) {
-
-  return -1 + 0.5 * H - 0.233 * log(1 + exp(2 * H - 7.38)) - 0.033 * log(1 + exp(H - 11));
-
-};
-
-/*
-  Delagarde et al. (2011) eq. 17
-
-  Herbage intake can also be restricted by time at pasture. If this is the case, it does not matter if grazing is
-  rotational or continuous.
-
-  VI_max    [kg or LFU] maximum voluntary intake depending on available forage TODO: unit of VI_max
-  H         [cm]        sward surface height measured with a sward stick
-*/
-
-var VI_max = function (H) {
-
-  return 0.058 + 0.0062 * (H - log(1 + exp(H - 22.9)));
-
-};
-
-/*
-  Delagarde et al. (2011) eq. 16
-
-  Equation for relative herbage intake limited by time at pasture.
-  
-  HI_r_tap  [-]         relative herbage intake limited by time at pasture (0-1)
-  TAP       [h day-1]   time at pasture
-  VI_max    [kg or LFU] maximum voluntary intake depending on available forage TODO: unit of VI_max
-*/
-
-var HI_r_tap = function (TAP, VI_max) {
-
-  var HI_r_tap = 1;
-
-  if (TAP <= 20)
-    HI_r_tap = (VI_max * TAP) - (VI_max - 0.008) * log(1 + exp(TAP - (0.845 / (VI_max - 0.008))));
-
-  return HI_r_tap;
-
-};
-
-/*
-  The theoretical, maximum intake of herbage when nothing is supplemented and there is no restriction whatsoever can be
-  calculated by dividing the intake capacity with the fill value of herbage.
-
-  HI_v  [kg (DM) day-1] voluntary herbage intake
-  IC    [LFU]           intake capacity
-  FV_h  [LFU]           fill value herbage
-*/
-
-var HI_v = function (IC, FV_h) {
-
-  return IC / FV_h; 
-
-};
-
-/*
-  Delagarde et al. (2011) eq. 14
-
-  Equation for herbage allowance above 2 cm taken.
-
-  In GrazeIn, the available herbage mass is defined as everything above 2 cm above ground, because it is assumed that
-  cows cannot graze the 2 cm closest to the ground.
-
-  HA_2  [kg (DM) ha-1]  herbage allowance above 2 cm
-  A     [m2]            total area of paddock
-  HM_2  [kg (DM) ha-1]  pre-grazing herbage mass above 2 cm ground level
-  HGR   [kg (DM) ha-1]  daily herbage growth rate
-  RT    [day]           residence time in the paddock
-  NCow  [#]             number of cows in the herds           
-*/
-
-var HA_2 = function (A, HM_2, HGR, RT, NCow) {
-
-  return A * (HM_2 + (0.5 * HGR * RT)) / (1000 * RT * NCow);
-
-};
-
-/*
-  Delagarde et al. (2011) eq. 12
-
-  Equation for relative herbage allowance taken.
-
-  The relative herhage allowance can be calculated by dividing the available herbage mass above 2 cm above ground with
-  the voluntary herbage intake of the cow.
-
-  HA_r  [-]             relative herbage allowance
-  HA_2  [kg (DM) ha-1]  herbage allowance above 2 cm
-  HI_v  [LFU]           voluntary herbage intake
-*/
-
-var HA_r = function (HA_2, HI_v) {
-
-  return  HA_2 / HI_v;
-
-};
-
-return {
-
-    DMI: DMI
-  , IC: IC
-  , FV_f: FV_f
-  , FV_c: FV_c
-  , FV_fs_diet: FV_fs_diet
-  , FV_cs_diet: FV_cs_diet
-  , GSR: GSR
-  , DEF: DEF
-
-};
-
-}());
-
-
-/*
   Energy and protein requirements according to a selection of evaluation systems (DE, FI, GB, FR).
 
   REFERENCES
-
-  NRC (National Research Council). 2001. Nutrient requirements of dairy cattle. Seventh edition. National Academy
-  Press, Washington, D.C. USA
-
-  GfE [Society of Nutrition Physiology] 2001. Empfehlungen zur Energie- und Nährstoffversorgung der Milchlühe und
-  Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers] DLG-Verlag, Frankfurt/
-  Main, Germany.
-
-  AFRC (Agricultural Food and Research Council), 1993. Energy and Protein Requirements of Ruminants. An advisory
+  
+  AFRC (Agricultural Food and Research Council). 1993. Energy and protein requirements of ruminants. An advisory
   manual prepared by the AFRC Technical Committee on Responses to Nutrients. CAB International, Wallingford, UK.
-
-  Dong, L.F., T. Yan, C.P. Ferris, and D.A. McDowell. 2014. Comparison of energy utilisation and energetic efficiency
-  of dairy cows under different input systems. In: The proceedings of the 65th Conference of European Association of
+  
+  Agabriel, J. 2010. Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables INRA
+  2010. Editions Quae, France.
+  
+  Dong, L.F., Yan, T., Ferris, C.P. and McDowell, D.A. 2014. Comparison of energy utilisation and energetic efficiency
+  of dairy cows under different input systems. In: Proceedings of the 65th Conference of European Association of
   Animal Production. p. 395, Copenhagen, Denmark.
   
-  MTT 2006. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations). Agrifood Research Finland,
-  Jokioninen, Finland, 84 p.
+  Feed into Milk Consortium. 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
+  Ed. Thomas, C. Nottingham University Press, UK.
   
-  MTT 2014. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations) [online]. Agrifood
+  GfE [Society of Nutrition Physiology] 2001. Empfehlungen zur Energie- und Nährstoffversorgung der Milchkühe und
+  Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers]. DLG-Verlag, Frankfurt/
+  Main, Germany.
+  
+  Jarrige, R. 1989. Ruminant nutrition: recommended allowances and feed tables. John Libbey Eurotext, France.
+  
+  MTT. 2006. Rehutaulukot ja ruokintasuositukset [Feed tables and feeding recommendations]. Agrifood Research Finland,
+  Jokioninen, Finland.
+  
+  MTT 2014. Rehutaulukot ja ruokintasuositukset [Feed tables and feeding recommendations] [online]. Agrifood
   Research Finland, Jokioinen. Accessed last on November 20, 2014, available at:
   https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
 
-  Sjaunja, L.-O., L. Baevre, L. Junkarinen, J. Pedersen, and J. Setala. 1990. A Nordic proposal for an energy corrected
-  milk (ECM) formula. Pages 156–157 in Proc. 27th Biennial Session of the International Committee for Animal Recording.
-  Paris, France.
+  NRC (National Research Council). 2001. Nutrient requirements of dairy cattle. 7th edition. National Academy Press,
+  Washington, D.C. USA.
 
-  Tyrell, H.F. and Reid, J.T., 1965. Prediction of the energy value of cow´s milk. Journal of Dairy Science 48,
+  Sjaunja, L.-O., Baevre, L., Junkarinen, L., Pedersen, J. and Setala, J. 1990. A Nordic proposal for an energy corrected
+  milk (ECM) formula. In: in Proceedings of the 27th Biennial Session of the International Committee for Animal Recording.
+  Paris, France. p. 156-157.
+
+  Tyrrell, H.F. and Reid, J.T. 1965. Prediction of the energy value of cow's milk. Journal of Dairy Science 48(9):
   1215-1223.
-
-  Feed into Milk Consortium, 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
-  Ed. C. Thomas. Nottingham University Press, UK.
-
-  Agabriel, J. (ed.) (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs
-  des aliments. Tables INRA 2010. Editions Quae, France.
-
-  Jarrige, Robert (ed.) (1989). Ruminant nutrition: recommended allowances and feed tables. John Libbey Eurotext,France.
 
   LICENSE
 
@@ -1355,12 +2414,15 @@ return {
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to the article:
+  Any publication for which this file or a derived work is used must include an a reference to at least one source:
 
-  Baldinger, L., Vaillant, J., Zollitsch, W., Rinne, M. (2014) SOLID-DSS - Eine online-Anwendung zur verbesserten 
-  Abstimmung von Grundfutterangebot und -bedarf auf biologisch wirtschaftenden Low Input Milchviehbetrieben.
-  In: Wiesinger, K., Cais, K., Obermaier, S. (eds), Angewandte Forschung und Beratung für den ökologischen Landbau in 
-  Bayern: Öko-Landbau-Tag 2014 am 9. April 2014 in Triesdorf; Tagungsband. LfL, Freising-Weihenstephan, pp. 19-22.
+  Vaillant, J. and Baldinger, L. 2014. 
+  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
+  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+
+  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
+  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
+  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
 */
 
 var dairy = dairy || {};
@@ -2006,6 +3068,65 @@ var fi = (function () {
 
   };
 
+  /* FOR THE SAKE OF COMPLETENESS: fi energy correction
+
+    The Finnish nutrient requirements for dairy cows includes a correction equation for energy intake, which in SOLID-DSS
+    is probably not usable, because it requires knowledge of the total diet when calculating intake. (Which in SOLID-DSS
+    is calculated before diets are formulated.) However, we want to estimate feed intake according to the Finnish equation
+    and correct it using their correction equation after the solver has produced the diets and then check to see how big
+    the difference between the Finnish energy intake and the energy intake based on the results from the solver is.
+
+    The last description of the Finnish system of feed evaluation published in print is MTT (2006). Since then all updates
+    have been published online, quoted as MTT (2014).
+
+    Energy values of feeds are expressed in Finnish MJ ME, details see feed.evaluation.js
+
+    REFERENCES
+
+    MTT 2006. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations). Agrifood Research Finland,
+    Jokioninen, Finland, 84 p.
+
+    MTT 2014. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations) [online]. Agrifood
+    Research Finland, Jokioinen. Accessed last on November 20, 2014, available at:
+    https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
+
+
+    Estimation of feed intake according to MTT (2014)
+
+    In Finland, feed intake of dairy cows is estimated using the energy requirements and an average diet energy
+    concentration, assuming that energy supply is adequate and the cow is neither mobilizing nor reconstituting body
+    reserves.
+
+    f_intake  [kg (DM)]       Estimated feed intake, kg DM
+    ME_req    [MJ ME]         Total energy requirements of a cow per day
+    ME_avg    [MJ kg-1 (DM)]  Average energy concentration of the total diet
+  */
+
+  var f_intake = function (ME_req, ME_avg) {
+
+    return ME_req / ME_avg;
+
+  };
+
+  /*
+    Calculation of corrected energy intake according to MTT (2014)
+
+    The Finnish feed evaluation system uses constant energy values for feeds and doesn´t take associative effects of feeds
+    and effects of feeding level into account. As a remedy, the energy intake of the cow is corrected in order to consider
+    effects of increased dry matter intake, high energy diets and diets with low crude protein concentration. 
+
+    f_intake_corr [MJ ME]        Corrected energy intake
+    f_intake      [kg (DM)]      Estimated feed intake, kg DM
+    ME_avg        [MJ kg-1 (DM)] Average energy concentration of the total diet
+    CP_avg        [g kg-1 (DM)]  Average crude protein concentration of the total diet
+  */
+
+  var f_intake_corr = function (f_intake, ME_avg, CP_avg) {
+
+    return f_intake * ME_avg - (-56.7 + 6.99 * ME_avg + 1.621 * f_intake - 0.44595 * CP_avg + 0.00112 * CP_avg * CP_avg);
+    
+  };  
+
   return {
         main: maintenance
       , prod: production
@@ -2137,7 +3258,7 @@ var gb = (function () {
       };
 
     } else {
-          /* TODO: exclude feed level adjustment in SOLID-DSS */
+          /* TODO: exclude feed level adjustment in SOLID-DSS. Use 11 MJ ME/kg TM instead of ME_total / DMI */
       var ME = 22.2136 - ME_total / DMI * 3.3290 + BW * 0.1357 + BWC * 48.5855
         , MP = 80.7936 + BW * 0.3571 + BWC * 223.1852
         ;
@@ -2532,12 +3653,13 @@ var fr = (function () {
     k_PDI values were taken from Jarrige (1989) Table 9.3
 
     weight  [{UFL, PDI}]  
+    BW      [kg]          body weight
     BWC     [kg]          body weight change
     WL      [week]        week of lactation
     p       [#]           parity
   */
 
-  var weight = function (BWC, WL, p) {
+  var weight = function (BW, BWC, WL, p) {
 
     if (p > 0) {
     
@@ -2564,12 +3686,20 @@ var fr = (function () {
 
           /* EBW [kg] empty body weight, Agabriel (2010) p. 96 equation 5.9, with C_0 = 0.482 and C_1 = 1.096 */
       var EBW = 0.482 * pow(BW, 1.096)
+          /*LIP [kg] lipid content of the body weight, Agabriel (2010) p. 96 equation 5.13*/
+        , LIP = 0.001 * pow(EBW, (1.883))
+          /*FFBW[kg] fat free body weight*/
+        , FFBW = BW - LIP
+          /*PROT [kg] protein content of the body weight, Agabriel (2010) p. 97 equation 5.14*/
+        , PROT = 0.1436 * pow(FFBW, (1.0723))
           /* EBWC [kg] empty body weight change, Agabriel (2010) p. 97 equation 5.16, with C_1 = 1.096 */
         , EBWC = (EBW / BW) * 1.096 * BWC
           /* GLIP [kg] daily gain of fat, Agabriel (2010) p. 97 equation 5.17, with B_0 = 0.001 and B_1 = 1.883 */
         , GLIP = 0.001 * 1.883 * pow(EBW, (1.883-1)) * EBWC
-          /* GPROT [kg] daily gain for protein, Agabriel(2010) p. 97 equation 5.14 */
-        , GPROT = 0.1436 * pow((EBWC - GLIP), 1.0723)
+          /*FFBWC [kg] fat free body weight change*/
+        , FFBWC = BWC - GLIP
+          /* GPROT [kg] daily gain of protein */
+        , GPROT = PROT / FFBW * FFBWC * 1.0723
           /* RE [Mcal day-1] energy retention */
         , RE = 5.48 * GPROT + 9.39 * GLIP
           /* k_l [0-1] efficency of using ME for lactation */
@@ -2643,922 +3773,6 @@ return {
 
 
 /*
-  Simple, deterministic herd structure model
-
-  LICENSE
-
-  Copyright 2014 Jan Vaillant   <jan.vaillant@zalf.de>
-  Copyright 2014 Lisa Baldinger <lisa.baldinger@boku.ac.at>
-
-  Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
-
-  Any publication for which this file or a derived work is used must include an a reference to the article:
-
-  Baldinger, L., Vaillant, J., Zollitsch, W., Rinne, M. (2014) SOLID-DSS - Eine online-Anwendung zur verbesserten 
-  Abstimmung von Grundfutterangebot und -bedarf auf biologisch wirtschaftenden Low Input Milchviehbetrieben.
-  In: Wiesinger, K., Cais, K., Obermaier, S. (eds), Angewandte Forschung und Beratung für den ökologischen Landbau in 
-  Bayern: Öko-Landbau-Tag 2014 am 9. April 2014 in Triesdorf; Tagungsband. LfL, Freising-Weihenstephan, pp. 19-22.
-  
-  TODO
-  
-    - add calving pattern option (seasonal)
-    - add parity 4 (>3) to output
-*/
-
-var dairy = dairy || {};
-
-dairy.herd = (function () {
-
-var pow = Math.pow
-  , round = Math.round
-  , floor = Math.floor
-  , ceil = Math.ceil
-  , IT_MIN = 1e2 /* min iterations */
-  , IT_MAX = 1e6 /* max. iterations */
-  , WEEKS_IN_MONTH = 30.5 / 7
-  ;
-
-/* constant parameters with default values */
-var cons = {
-    ageFirstCalving: 24
-  , femaleCalfRate: 0.47
-  , stillBirthRate: 0.07
-  , youngStockCullRate: 0.155
-  , replacementRate: 0.30
-  , calvingInterval: 12.0
-  , herdSize: 100
-  , gestationPeriod: 9.0
-  , dryPeriode: 2.0
-};  
-
-/* variables */
-var vars = {
-    /* stores cow object of cows of same age in month per index 
-      age is month after first calving 
-      {
-          no:   no. of cows
-        , lac:  lactation no.
-        , dry:  if cow is dry
-        , WG:   week of gestation
-        , WL:   week of lactation  
-      } */
-    cows: []
-    /* no. of young stock per age month since birth */
-  , young: []
-    /* no. of cows */
-  , noCows: 0
-  , heifersBought: []
-  , heifersSold: []
-  , lac: []
-  , sim: []
-};
-
-/* 
-  run simulation until herd structure does not change anymore (or no. cows equals zero)
-  returns an array of with young stock count per age month and cows with
-  
-  lac [#]     lactation no.
-  dry [bool]  if cow is dry
-  WG  [#]     week of gestation
-  WL  [#]     week of lactation
-  age [month]
-
-  initialize parameters (object)
-
-  ageFirstCalving     [month]
-  femaleCalfRate      [-]     fraction female calfes of all calves born
-  stillBirthRate      [-]     fraction of dead born calves
-  youngStockCullRate  [-]     fraction of young stock that do not make it to 1st lactation
-  replacementRate     [-]     fraction of cows replaced each year
-  calvingInterval     [month] month inbetween clavings
-  herdSize            [#]     no. of cows in herd
-  gestationPeriod     [month] length gestation period
-  dryPeriode          [month] length dry period
-*/
-
-var get = function (options) {
-
-  /* overwrite default default values if provided and valid */
-  for (var prop in options) {
-    if (options.hasOwnProperty(prop))
-      cons[prop] = (typeof options[prop] === 'number' && !isNaN(options[prop])) ? options[prop] : cons[prop];
-  }
-
-  /* reset values */
-  vars.cows = [];
-  vars.young = [];
-  vars.noCows = 0;
-  vars.heifersBought = [];
-  vars.heifersSold = [];
-  vars.sim = [];
-
-  /* varriable shortcuts */
-  var ci = cons.calvingInterval
-    , hs = cons.herdSize
-    , dp = cons.dryPeriode
-    , gp = cons.gestationPeriod
-    , sb = cons.stillBirthRate
-    , yc = cons.youngStockCullRate
-    , fc = cons.femaleCalfRate
-    , ac = cons.ageFirstCalving
-    , rr = cons.replacementRate
-    , cows = vars.cows
-    , young = vars.young
-    , converged = false
-    , its = 0 /* no. iterations */
-    ;
-
-  /* initialize cow array with some meaningfull values to have a starting point
-    cows at age ageFirstCalving + m within calving interval. eqal distribution of status througout calvingInterval */
-  var l = 0;
-  while (l < 4) { /* just set cows up to lactation 4 (could be any) */ 
-    
-    for (var m = 0; m < ci; m++) {
-      cows[m + l * (ci - 1)] = { 
-          no: (hs / ci) / 4 /* devide by 4 because we only initialize for cows till fourth lactation */
-        , lac: l + 1
-        , dry: (m >= ci - dp) ? true : false
-        , WG: (m >= ci - gp) ? (ci - gp) * WEEKS_IN_MONTH : 0
-        , WL: (m >= ci - dp) ? 0 : m * WEEKS_IN_MONTH
-        , age: ac + ci * (l - 1) + m
-      };
-      vars.noCows += (hs / ci) / 4;
-    }
-
-    l++;
-  }
-
-  /* Initialize young stock array. Apply death rate equally distributed as compound interest: 
-    K_interest = K_start * (1 + p / 100)^n <=> p / 100 = (K_interest / K_start)^(1/n) - 1
-    K_start = (hs / ci) *  (1 - sb) * fc */
-  young[0] = (hs / ci) *  (1 - sb) * fc * pow(1 - yc, 1 / ac);
-  for (var m = 1; m < ac; m++)
-    young[m] = young[m - 1] * pow(1 - yc, 1 / ac); /* no. young stock per age month */
-
-  /* loop until converged i.e. avg. lactation within herd with no. cows equals herd size does not change anymore.
-    Each iteration step equals one month */
-  while (!converged) {
-
-    /* remove culled young stock */
-    for (var y = 0, ys = young.length; y < ys; y++)
-      young[y] = young[y] * pow(1 - yc, 1 / ac);
-
-    /* replacement per month; add newly replaced animals to the beginning of the array
-      all age classes within herd are equally replaced */
-
-    var newFemaleCalves = 0;
-    if (young[young.length - 1] > 0 ) { // heifers available
-      /* add new calves to young cattle */
-      /* from heifers */
-      newFemaleCalves += young[ac - 1] * (1 - sb) * fc;
-      /* from cows */
-    }
-
-    vars.noCows = 0;
-    /* start at age group previously c = 0 */
-    for (var c = 0, cs = cows.length; c < cs; c++) {
-
-      var cow = cows[c];
-
-      if (cow.no > 0) {
-
-        /* replacement */
-        cow.no = cow.no * (1 - (rr / 12)) // avg monthly replacement
-        cow.age++;
-
-        // update pregnancy, dry ...
-        if (!cow.dry) {
-          cow.WL += WEEKS_IN_MONTH;
-          if (cow.WG > 0) {
-            cow.WG += WEEKS_IN_MONTH;
-          } else {
-            if (cow.WL > (ci - gp) * WEEKS_IN_MONTH)
-            cow.WG = WEEKS_IN_MONTH;
-          }
-          /* check if now dry */
-          if (cow.WL > (ci - dp) * WEEKS_IN_MONTH) {
-            cow.WL = 0;
-            cow.dry = true;
-          }
-        } else { // dry cows
-          cow.WG += WEEKS_IN_MONTH;
-          /* check if cow calved */
-          if (cow.WG > gp * WEEKS_IN_MONTH) {
-            newFemaleCalves += cow.no * (1 - sb) * fc;
-            cow.lac += 1;
-            cow.dry = false;
-            cow.WG = 0;
-            cow.WL = 0;
-          }
-        }
-
-      }
-
-      vars.noCows += cow.no;
-
-    } // cows loop
-
-    /* no. available heifers form young stock */
-    var noHeifers = young.pop();
-    /* move only the no. of heifers that are needed to keep/reach total herdSize */
-    var noHeifersToHerd = (vars.noCows < hs) ? ((hs - vars.noCows < noHeifers) ? (hs - vars.noCows) : noHeifers) : 0;
-    vars.heifersSold.unshift(noHeifers - noHeifersToHerd);
-    
-    var noHeifersBought = 0;
-    if (noHeifersToHerd < hs - vars.noCows) {
-      noHeifersToHerd = hs - vars.noCows;
-      noHeifersBought = hs - vars.noCows + noHeifersToHerd;
-    }
-    vars.heifersBought.unshift(noHeifersBought);
-
-    cows.unshift({
-        no: noHeifersToHerd
-      , lac: 1
-      , dry: false
-      , WG: 0
-      , WL: 0
-      , age: ac
-    });
-
-    vars.noCows += noHeifersToHerd;
-
-    /* add new female calves at beginning of array and apply culling rate */
-    young.unshift(newFemaleCalves * pow(1 - yc, 1 / ac));
-
-    /* calculate cows per lactation */
-    vars.lac = [];
-    for (var c = 0, cs = cows.length; c < cs; c++) {
-      if (!vars.lac[cows[c].lac - 1]) 
-        vars.lac[cows[c].lac - 1] = 0;
-      vars.lac[cows[c].lac - 1] += cows[c].no;
-    }  
-
-    var lacSum = 0;
-    /* calculate avg. lactation */
-    for (var l = 0, ls = vars.lac.length; l < ls; l++) {
-      lacSum += vars.lac[l] * (l + 1);
-    }
-
-    /* debug max. lac 20 */
-    for (var l = 0; l < 20; l++) {
-      if (!vars.sim[l])
-        vars.sim[l] = [];
-      var no = vars.lac[l];
-      vars.sim[l].push(no ? no : 0);
-    }
-
-    if ((its > IT_MIN && round(vars.noCows) === hs && Math.round(avg_lac * 1e6) === round(lacSum / vars.noCows * 1e6)) 
-      || its > IT_MAX || round(vars.noCows) === 0 || isNaN(vars.noCows)) {
-      converged = true;
-    }
-
-    var avg_lac = lacSum / vars.noCows;
-    its++;
-
-  } /* simulation loop */
-
-  var herd = {
-      cowsPerLac: []
-    , cows: []
-    , sim: vars.sim
-    , heifersBought: round(vars.heifersBought[0])
-    , heifersSold: round(vars.heifersSold[0])
-    , young: []
-  };
-
-  /* add young stock */
-  for (var i = 0, is = vars.young.length; i < is; i++)
-    herd.young.push({ age: i + 1, no: round(vars.young[i]) });
-
-  /* we need only cows of parity 1, 2 or >2. Code below as option? */
-  // var sum = 0;
-  // for (var l = 0, ls = vars.lac.length; l < ls; l++) {
-  //   if (sum === hs)
-  //     break;
-  //   if (sum + ceil(vars.lac[l]) > hs)
-  //     herd.cowsPerLac[l] = hs - sum;
-  //   else  
-  //     herd.cowsPerLac[l] = ceil(vars.lac[l]);
-  //   sum += herd.cowsPerLac[l]; 
-  // }
-
-  herd.cowsPerLac[0] = round(vars.lac[0]);
-  herd.cowsPerLac[1] = round(vars.lac[1]);
-  herd.cowsPerLac[2] = hs - (herd.cowsPerLac[0] + herd.cowsPerLac[1]);
-
-  for (var l = 0, ls = herd.cowsPerLac.length; l < ls; l++) {
-    
-    var DPP_increment = ci * 30.5 / ((herd.cowsPerLac[l] === 1) ? Math.random() * ci : herd.cowsPerLac[l]);
-    var DPP = DPP_increment * 0.5;
-    
-    for (var c = 0, cs = herd.cowsPerLac[l]; c < cs; c++) {
-    
-      herd.cows.push({
-          DPP: round(DPP)
-        , isDry: (DPP > 30.5 * (ci - dp)) ? true : false  
-        , DIM: (DPP > 30.5 * (ci - dp)) ? 0 : round(DPP)  
-        , DG: (DPP - 30.5 * (ci - gp) > 0) ? round(DPP - 30.5 * (ci - gp)) : 0 
-        , AGE: round(ac + l * ci + DPP / 30.5) 
-        , AGE_days: round((ac + l * ci) * 30.5 + DPP) 
-        , P: l + 1
-      });
-
-      DPP += DPP_increment;
-
-    }
-
-  }
-
-  return herd;
-
-};
-
-return {
-  get: get
-};
-
-}());
-
-
-/*
-  Dairy cow grouping.
-
-  It creates groups a such that the total deviation of energy and protein requirements relative to the cow's intake 
-  capacity from the groups average is minimized (similar to McGilliard 1983). In the resulting groups animals in each 
-  group require a "similar" energy and protein density of the ration. The results of each run slightly defer depending on
-  the inital guess of k-means. Therefore it runs several times and returns the best result.
-
-  REFERENCES
-
-  McGilliard, M. L., J. M. Swisher, and R. E. James. 1983.
-  Grouping lactating cows by nutritional requirements for feeding. J. Dairy Sci. 6631084-1093
-
-  k-means.js implementation from https://github.com/cmtt/kmeans-js
-
-  LICENSE
-
-  Copyright 2014 Jan Vaillant   <jan.vaillant@zalf.de>
-  Copyright 2014 Lisa Baldinger <lisa.baldinger@boku.ac.at>
-
-  Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
-
-  Any publication for which this file or a derived work is used must include an a reference to the article:
-
-  Baldinger, L., Vaillant, J., Zollitsch, W., Rinne, M. (2014) SOLID-DSS - Eine online-Anwendung zur verbesserten 
-  Abstimmung von Grundfutterangebot und -bedarf auf biologisch wirtschaftenden Low Input Milchviehbetrieben.
-  In: Wiesinger, K., Cais, K., Obermaier, S. (eds), Angewandte Forschung und Beratung für den ökologischen Landbau in 
-  Bayern: Öko-Landbau-Tag 2014 am 9. April 2014 in Triesdorf; Tagungsband. LfL, Freising-Weihenstephan, pp. 19-22.
-
-  TODO
-
-  - implement different strategies e.g. (req. intake capacity-1, absolute requirements, days in milk)
-*/
-
-var dairy = dairy || {};
-
-dairy.group = (function () {
-
-var round = Math.round
-  , floor = Math.floor
-  , random = Math.random
-  , log = Math.log
-  , pow = Math.pow
-  , sqrt = Math.sqrt
-  , distance =  function(a, b) {
-      return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
-    }
-    /* TODO: refactor original code from cmtt kmeans.. */
-  , sortBy = function (a, b, c) {
-      c = a.slice();
-      return c.sort(function (d, e) {
-        d = b(d);
-        e = b(e);
-        return (d < e ? -1 : d > e ? 1 : 0);
-      })
-    }
-  ;
-
-
-/* returns total of squared differences */ 
-
-var sumSquaredDifferences = function (points, centroids) {
-
-  var sum = 0
-    , ps = points.length
-    ;
-
-  for (var p = 0; p < ps; p++) {
-    var point = points[p]
-      , centroid = centroids[point.k]
-      , dif_x = pow(point.x - centroid.x, 2)
-      , dif_y = pow(point.y - centroid.y, 2)
-      ;
-    sum += dif_x + dif_y;
-  }
-
-  return sum;
-
-};
-
-/* nomalize (0-1) data. Coordinates in original data are altered */
-
-var doNormalize = function (points) {
-
-  var ps = points.length;
-
-  /* get minimum and maximum x */
-  points.sort(function (a, b) {
-    return a.x - b.x;
-  });
-
-  var x_min = points[0].x;
-  var x_max = points[ps - 1].x;
-
-  /* get minimum and maximum y */
-  points.sort(function (a, b) {
-    return a.y - b.y;
-  });
-
-  var y_min = points[0].y;
-  var y_max = points[ps - 1].y;
-
-  /* normalize */
-  for (var p = 0; p < ps; p++) {
-    var point = points[p];
-    point.x = (point.x - x_min) / (x_max - x_min);
-    point.y = (point.y - y_min) / (y_max - y_min);
-  }
-
-};
-
-/* k-means++ initialization from https://github.com/cmtt/kmeans-js */
-
-var kmeansplusplus = function (points, ks) {
-
-  var ps = points.length;
-
-  /* determine the amount of tries */
-  var D = []
-    , ntries = 2 + round(log(ks))
-    , centroids = []
-    ;
-
-  /* Choose one center uniformly at random from the data points. */
-  var p0 = points[floor(random() * ps)];
-
-  centroids.push({
-      x: p0.x
-    , y: p0.y
-    , k: 0
-  });
-
-  /* For each data point x, compute D(x), the distance between x and the nearest center that has already been chosen. */
-  for (i = 0; i < ps; ++i)
-    D[i] = pow(distance(p0, points[i]), 2);
-
-  var Dsum = D.reduce(function(a, b) {
-    return a + b;
-  });
-
-  /* Choose one new data point at random as a new center, using a weighted probability distribution where a point x is 
-    chosen with probability proportional to D(x)2. (Repeated until k centers have been chosen.) */
-  for (k = 1; k < ks; ++k) {
-
-    var bestDsum = -1, bestIdx = -1;
-
-    for (i = 0; i < ntries; ++i) {
-      var rndVal = floor(random() * Dsum);
-
-      for (var n = 0; n < ps; ++n) {
-        if (rndVal <= D[n]) {
-          break;
-        } else {
-          rndVal -= D[n];
-        }
-      }
-
-      var tmpD = [];
-      for (var m = 0; m < ps; ++m) {
-        cmp1 = D[m];
-        cmp2 = pow(distance(points[m], points[n]), 2);
-        tmpD[m] = cmp1 > cmp2 ? cmp2 : cmp1;
-      }
-
-      var tmpDsum = tmpD.reduce(function(a, b) {
-        return a + b;
-      });
-
-      if (bestDsum < 0 || tmpDsum < bestDsum) {
-        bestDsum = tmpDsum, bestIdx = n;
-      }
-    }
-
-    Dsum = bestDsum;
-
-    var centroid = {
-        x: points[bestIdx].x
-      , y: points[bestIdx].y
-      , k: k
-    };
-
-    centroids.push(centroid);
-
-    for (i = 0; i < ps; ++i) {
-      cmp1 = D[i];
-      cmp2 = pow(distance(points[bestIdx], points[i]), 2);
-      D[i] = cmp1 > cmp2 ? cmp2 : cmp1;
-    }
-  }
-
-  /* sort descending if x is energy density */
-  centroids.sort(function (a, b) {
-    return b.x - a.x;
-  });
-  
-  /* set k === index */
-  for (var c = 0, cs = centroids.length; c < cs; c++)
-    centroids[c].k = c;
-
-  return centroids;
-
-};
-
-var kmeans = function (points, centroids) {
-
-  var converged = false
-    , ks = centroids.length
-    , ps = points.length
-    ;
-
-  while (!converged) {
-    
-    var i;
-    converged = true;
-
-    /* Prepares the array of sums. */
-    var sums = [];
-    for (var k = 0; k < ks; k++)
-      sums[k] = { x: 0, y: 0, items: 0 };
-
-    /* Find the closest centroid for each point. */
-    for (var p = 0; p < ps; ++p) {
-
-      var distances = sortBy(centroids, function (centroid) {
-          return distance(centroid, points[p]);
-        });
-
-      var closestItem = distances[0];
-      var k = closestItem.k;
-
-      /* When the point is not attached to a centroid or the point was attached to some other centroid before,
-        the result differs from the previous iteration. */
-      if (typeof points[p].k  !== 'number' || points[p].k !== k)
-        converged = false;
-
-      /* Attach the point to the centroid */
-      points[p].k = k;
-
-      /* Add the points' coordinates to the sum of its centroid */
-      sums[k].x += points[p].x;
-      sums[k].y += points[p].y;
-
-      ++sums[k].items;
-    }
-
-    /* Re-calculate the center of the centroid. */
-    for (var k = 0; k < ks; ++k) {
-      if (sums[k].items > 0) {
-        centroids[k].x = sums[k].x / sums[k].items;
-        centroids[k].y = sums[k].y / sums[k].items;
-      }
-      centroids[k].items = sums[k].items;
-    }
-  }
-
-};
-
-var get = function (data, options) {
-
-  var ks = options.k
-    , runs = options.runs
-    , normalize = options.normalize
-    , xAttribute = options.xAttribute
-    , yAttribute = options.yAttribute
-    , points = data
-    , result = []
-    ;
-
-  if (typeof xAttribute === 'string' && xAttribute.length > 0
-    && typeof yAttribute === 'string' && yAttribute.length > 0) {
-    /* prepare data: add x, y property */
-    for (var p = 0, ps = data.length; p < ps; p++) {
-      points[p].x = data[p][xAttribute];
-      points[p].y = data[p][yAttribute];
-    }  
-  }
-
-  if (normalize)
-    doNormalize(points);
-
-  for (var run = 0; run < runs; run++) {  
-
-    /* stores result of each run */
-    result[run] = { centroids: [], sum: Infinity };
-    
-    /* inital guess */
-    var centroids = kmeansplusplus(points, ks);
-
-    /* store initial centroids from kmeans++ in order to re-run */
-    for(var k = 0; k < ks; k++) {
-      result[run].centroids[k] = { 
-        x: centroids[k].x, 
-        y: centroids[k].y
-      }
-    } 
-
-    /* run kmeans */
-    kmeans(points, centroids);
-
-    /* calculate differences */
-    result[run].sum = sumSquaredDifferences(points, centroids);
- 
-  }
-
-  /* find best result */
-  result.sort(function (a, b) {
-    return a.sum - b.sum; 
-  });
-
-  /* re-use initial centroids produced by kmeans++ from best run */
-  centroids = [];
-  for (var k = 0; k < ks; k++) {
-    var centroid = {
-        x: result[0].centroids[k].x
-      , y: result[0].centroids[k].y
-      , k: k
-    };
-    centroids[k] = centroid;
-  }
-
-  /* run again with best initial centroids */
-  kmeans(points, centroids);
-
-  return sumSquaredDifferences(points, centroids);
-
-};
-
-return {
-  get: get
-};
-
-}());
-
-
-/*
-  Dairy diet calculation.
-
-  LICENSE
-
-  Copyright 2014 Jan Vaillant   <jan.vaillant@zalf.de>
-  Copyright 2014 Lisa Baldinger <lisa.baldinger@boku.ac.at>
-
-  Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
-
-  Any publication for which this file or a derived work is used must include an a reference to the article:
-
-  Baldinger, L., Vaillant, J., Zollitsch, W., Rinne, M. (2014) SOLID-DSS - Eine online-Anwendung zur verbesserten 
-  Abstimmung von Grundfutterangebot und -bedarf auf biologisch wirtschaftenden Low Input Milchviehbetrieben.
-  In: Wiesinger, K., Cais, K., Obermaier, S. (eds), Angewandte Forschung und Beratung für den ökologischen Landbau in 
-  Bayern: Öko-Landbau-Tag 2014 am 9. April 2014 in Triesdorf; Tagungsband. LfL, Freising-Weihenstephan, pp. 19-22.
-*/
-
-var dairy = dairy || {};
-
-dairy.diet = (function () {
-
-var ENVIRONMENT_IS_NODE = typeof process === 'object' && typeof require === 'function'
-  , ENVIRONMENT_IS_WEB = typeof window === 'object'
-  , ENVIRONMENT_IS_WORKER = typeof importScripts === 'function'
-  , glpk = null
-  , callback = function (result) {};
-  ;
-
-/* GLPK 4.53 constants */
-var GLP_MIN = 1  /* minimization */
-  , GLP_MAX = 2  /* maximization */
-
-    /* kind of structural variable: */
-  , GLP_CV  = 1  /* continuous variable */
-  , GLP_IV  = 2  /* integer variable */
-  , GLP_BV  = 3  /* binary variable */
-
-    /* type of auxiliary/structural variable: */
-  , GLP_FR  = 1  /* free (unbounded) variable */
-  , GLP_LO  = 2  /* variable with lower bound */
-  , GLP_UP  = 3  /* variable with upper bound */
-  , GLP_DB  = 4  /* double-bounded variable */
-  , GLP_FX  = 5  /* fixed variable */
-
-  , GLP_MSG_OFF = 0  /* no output */
-  , GLP_MSG_ERR = 1  /* warning and error messages only */
-  , GLP_MSG_ON  = 2  /* normal output */
-  , GLP_MSG_ALL = 3  /* full output */
-  , GLP_MSG_DBG = 4  /* debug output */
-
-    /* solution status: */
-  , GLP_UNDEF  = 1  /* solution is undefined */
-  , GLP_FEAS   = 2  /* solution is feasible */
-  , GLP_INFEAS = 3  /* solution is infeasible */
-  , GLP_NOFEAS = 4  /* no feasible solution exists */
-  , GLP_OPT    = 5  /* solution is optimal */
-  , GLP_UNBND  = 6  /* solution is unbounded */
-  ;
-
-if (ENVIRONMENT_IS_NODE) {
-  glpk = require('./lib/glpk.js');
-} else if (ENVIRONMENT_IS_WEB) {
-  glpk = new Worker('./lib/glpk.js');
-  glpk.onmessage = function (evt) {
-
-    if (typeof evt.data === 'object')
-      callback(evt.data);
-    else
-      console.log(evt.data);
-
-  };
-}
-
-var get = function (cow, feeds, options) {
-
-  callback = options.cb;
-
-  var RNB_ub = options.RNB_ub
-    , RNB_lb = options.RNB_lb
-    , conc_mx = options.conc_mx /* should not be larger than 0.5 */
-    , eval_sys = options.eval_sys
-    , LP = {
-        name: name,
-        objective: {
-          direction: GLP_MAX,
-          name: 'obj',
-          vars: []
-        },
-        subjectTo: [],
-        bounds: []
-      }
-    ;
-
-  LP.objective.vars.push({
-    name: 'dE',
-    coef: -10 
-  });
-
-  LP.objective.vars.push({
-    name: 'sE',
-    coef: -10 
-  });
-
-  LP.objective.vars.push({
-    name: 'dP',
-    coef: -1 
-  });
-
-  LP.objective.vars.push({
-    name: 'sP',
-    coef: -1 
-  });
-
-  var subjectTo = [];
-
-  var E_const = {
-    name: 'E',
-    vars: [ 
-      { name: 'dE', coef:  1 },
-      { name: 'sE', coef: -1 },
-    ],
-    bnds: { type: GLP_FX, ub: 1.0, lb: 1.0 } 
-  }; 
-
-  var P_const = {
-    name: 'P',
-    vars: [ 
-      { name: 'dP', coef:  1 },
-      { name: 'sP', coef: -1 },
-    ],
-    bnds: { type: GLP_FX, ub: 1.0, lb: 1.0 } 
-  }; 
-
-  var RNB_bnd_type = -1;
-  if (RNB_lb === RNB_ub)
-    RNB_bnd_type = GLP_FX;
-  else if (RNB_lb === -Infinity && RNB_ub === Infinity)
-    RNB_bnd_type = GLP_FR;
-  else if (RNB_lb === -Infinity && RNB_ub < Infinity)
-    RNB_bnd_type = GLP_UP;
-  else if (RNB_lb > -Infinity && RNB_ub === Infinity)
-    RNB_bnd_type = GLP_LO;
-  else if (RNB_lb != -Infinity && RNB_ub != Infinity)
-    RNB_bnd_type = GLP_DB;
-
-  var RNB_const = {
-    name: 'RNB',
-    vars: [],
-    bnds: { 
-      type: RNB_bnd_type,
-      ub: RNB_ub,
-      lb: RNB_lb 
-    } 
-  };
-
-  var IC_const = {
-    name: 'IC',
-    vars: [],
-    bnds: { type: GLP_FX, ub: cow.IC, lb: cow.IC } 
-  };
-
-  var CC_const = {
-    name: 'CC',
-    vars: [],
-    bnds: { type: GLP_UP, ub: 0, lb: 0 } 
-  };
-
-  /* add selected feeds */
-  for (var f = 0, fs = feeds.length; f < fs; f++) {
-
-    var feed = feeds[f];
-
-    if (conc_mx === 0 && feed.type === 'concentrate')
-      continue;
-
-    E_const.vars.push({
-      name: 'F_' + feed.id,
-      coef: feed[eval_sys].E / cow.req[eval_sys].total.E
-    });
-
-    P_const.vars.push({
-      name: 'F_' + feed.id,
-      coef: feed.de.P / cow.req.de.total.P
-    });
-
-    RNB_const.vars.push({
-      name: 'F_' + feed.id,
-      coef: feed.de.RNB
-    });
-
-    if (feed.type === 'concentrate') {
-
-      IC_const.vars.push({
-        name: 'F_' + feed.id,
-        coef: cow.FV_c
-      });
-
-      CC_const.vars.push({
-        name: 'F_' + feed.id,
-        coef: (1 - conc_mx) / conc_mx
-      });
-
-    } else {
-
-      IC_const.vars.push({
-        name: 'F_' + feed.id,
-        coef: feed.fr.FV
-      });
-
-      CC_const.vars.push({
-        name: 'F_' + feed.id,
-        coef: -1
-      });
-
-    }
-
-  }    
-
-  subjectTo.push(E_const);
-  subjectTo.push(P_const);
-  subjectTo.push(RNB_const);
-    subjectTo.push(IC_const);
-  if (conc_mx > 0)
-    subjectTo.push(CC_const);
-
-  LP.subjectTo = subjectTo;
-
-  if (ENVIRONMENT_IS_NODE)
-    return glpk.solve(LP, GLP_MSG_ALL);
-  else if (ENVIRONMENT_IS_WEB && typeof callback === 'function')
-    return glpk.postMessage({ lp: LP, msg_lev: GLP_MSG_DBG });
-  else
-    return null;
-
-};
-
-return {
-  get: get
-};
-
-}());
-
-
-/*
   The energetic value of feeds is described using four different country-specific systems of feed evaluation, the
   German, Finnish, British and French system.
 
@@ -3598,33 +3812,33 @@ return {
 
   REFERENCES
 
-  Agabriel, J. 2010. Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables
-  INRA 2010. Editions Quae, France.
+  Agabriel, J. 2010. Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables INRA
+  2010. Editions Quae, France.
   
-  Feed into Milk 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
-  Ed. C. Thomas. Nottingham University Press, UK.
+  Feed into Milk Consortium. 2004. Feed into Milk. A new applied feeding system for dairy cows. An advisory manual.
+  Ed. Thomas, C. Nottingham University Press, UK.
   
   GfE [Society of Nutrition Physiology] 2001. Empfehlungen zur Energie- und Nährstoffversorgung der Milchkühe und
-  Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers] DLG-Verlag, Frankfurt/
+  Aufzuchtrinder [Recommendations on the energy and nutrient supply for dairy cows and heifers]. DLG-Verlag, Frankfurt/
   Main, Germany.
   
   Lebzien, P., Voigt, J., Gabel, M. und Gädeken, D. 1996. Zur Schätzung der Menge an nutzbarem Rohprotein am Duodenum
   von Milchkühen. [On the estimation of utilizable crude protein at the duodenum of dairy cows] Journal of Animal
   Physiology and Animal Nutrition 76:218-223.
   
-  MTT 2006. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations). Agrifood Research Finland,
-  Jokioninen, Finland, 84 p.
+  MTT. 2006. Rehutaulukot ja ruokintasuositukset [Feed tables and feeding recommendations]. Agrifood Research Finland,
+  Jokioninen, Finland.
   
-  MTT 2014. Rehutaulukot ja ruokintasuositukset (Feed tables and feeding recommendations) [online]. Agrifood
+  MTT 2014. Rehutaulukot ja ruokintasuositukset [Feed tables and feeding recommendations] [online]. Agrifood
   Research Finland, Jokioinen. Accessed last on November 20, 2014, available at:
   https://portal.mtt.fi/portal/page/portal/Rehutaulukot/feed_tables_english
   
-  Schwab, G.C., Huhtanen, P., Hunt, C.W. and Hvelplund, T. 2005. Nitrogen requirements of cattle. Pages 13-70 in
-  Pfeffer, E., and Hristov, A.N. (ed.). Nitrogen and Phosphorus Nutrition of Cattle. CABI Publishing, Wallingford, UK.
+  Schwab, G.C., Huhtanen, P., Hunt, C.W. and Hvelplund, T. 2005. Nitrogen requirements of cattle. In: Pfeffer, E. and
+  Hristov, A.N. (ed.). Nitrogen and Phosphorus Nutrition of Cattle. CABI Publishing, Wallingford, UK. p. 13-70.
 
-  Tran, G. et Sauvant, D. 2002. Page 22 in Sauvant D., Perez J.-M. et Tran G. (eds.) Tables de composition et de
-  valeur nutritive des matières premières destinées aux animaux d´élevage: porcs, volailles, bovins, ovins, caprins,
-  lapins, chevaux, poissons. Paris, Inra-AFZ, France, 301 p.
+  Tran, G. et Sauvant, D. 2002. In: Sauvant D., Perez J.-M. et Tran G. (eds.) Tables de composition et de valeur
+  nutritive des matières premières destinées aux animaux d´élevage: porcs, volailles, bovins, ovins, caprins, lapins,
+  chevaux, poissons. Paris, Inra-AFZ, France. p. 22.
 
   LICENSE
 
@@ -3633,12 +3847,15 @@ return {
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to the article:
+  Any publication for which this file or a derived work is used must include an a reference to at least one source:
 
-  Baldinger, L., Vaillant, J., Zollitsch, W., Rinne, M. (2014) SOLID-DSS - Eine online-Anwendung zur verbesserten 
-  Abstimmung von Grundfutterangebot und -bedarf auf biologisch wirtschaftenden Low Input Milchviehbetrieben.
-  In: Wiesinger, K., Cais, K., Obermaier, S. (eds), Angewandte Forschung und Beratung für den ökologischen Landbau in 
-  Bayern: Öko-Landbau-Tag 2014 am 9. April 2014 in Triesdorf; Tagungsband. LfL, Freising-Weihenstephan, pp. 19-22.
+  Vaillant, J. and Baldinger, L. 2014. 
+  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
+  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+
+  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
+  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
+  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
 */
 
 var feed = feed || {};
@@ -4235,8 +4452,8 @@ return {
   DLG [German Agricultural Society]. 1997. DLG-Futterwerttabellen – Wiederkäuer [Feed Tables Ruminants]. University Hohenheim
   (ed.). 7th edition, DLG-Verlag, Frankfurt/Main, Germany.
   
-  Agabriel, J. (ed.) (2010). Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables
-  INRA 2010. Editions Quae, France.
+  Agabriel, J. 2010. Alimentation des bovins, ovins et caprins. Besoins des animaux - Valeurs des aliments. Tables INRA
+  2010. Editions Quae, France.
 
   LICENSE
 
@@ -4245,12 +4462,15 @@ return {
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to the article:
+  Any publication for which this file or a derived work is used must include an a reference to at least one source:
 
-  Baldinger, L., Vaillant, J., Zollitsch, W., Rinne, M. (2014) SOLID-DSS - Eine online-Anwendung zur verbesserten 
-  Abstimmung von Grundfutterangebot und -bedarf auf biologisch wirtschaftenden Low Input Milchviehbetrieben.
-  In: Wiesinger, K., Cais, K., Obermaier, S. (eds), Angewandte Forschung und Beratung für den ökologischen Landbau in 
-  Bayern: Öko-Landbau-Tag 2014 am 9. April 2014 in Triesdorf; Tagungsband. LfL, Freising-Weihenstephan, pp. 19-22.
+  Vaillant, J. and Baldinger, L. 2014. 
+  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
+  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+
+  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
+  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
+  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain..
 
 */
 
@@ -6435,7 +6655,7 @@ feed.feeds = [
 {
   id: 64,
   type: 'concentrate',
-  name: 'Rapessed, expeller',
+  name: 'Rapeseed, expeller',
   name_de: 'Rapsextraktionsschrot',
   delta_F1: 0,
   delta_C1: 36,
@@ -6525,7 +6745,7 @@ feed.feeds = [
   CP: 548,
   CPD: 0.92,
   EE: 13,
-  EED: 0,
+  EED: 0.68,
   CF: 39,
   CFD: 0.85,
   NFE: 333,

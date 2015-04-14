@@ -753,7 +753,7 @@ var fi = (function () {
     CP_avg        [g kg-1 (DM)]  Average crude protein concentration of the total diet
   */
 
-  var f_intake_corr = (function (f_intake, ME_avg, CP_avg) {
+  var f_intake_corr = function (f_intake, ME_avg, CP_avg) {
 
     return f_intake * ME_avg - (-56.7 + 6.99 * ME_avg + 1.621 * f_intake - 0.44595 * CP_avg + 0.00112 * CP_avg * CP_avg);
     
