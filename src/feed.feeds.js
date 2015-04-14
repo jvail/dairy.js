@@ -2212,7 +2212,7 @@ feed.feeds = [
 {
   id: 64,
   type: 'concentrate',
-  name: 'Rapessed, expeller',
+  name: 'Rapeseed, expeller',
   name_de: 'Rapsextraktionsschrot',
   delta_F1: 0,
   delta_C1: 36,
