@@ -28,7 +28,7 @@ Vaillant, J. and Baldinger, L. 2014.
 Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
  
 Baldinger, L.,  J. Vaillant, W. Zollitsch and M. Rinne (2015).
-Making a decision-support system for dairy farmers usable throughout Europe: the challenge of feed evaluation.
+[Making a decision-support system for dairy farmers usable throughout Europe: the challenge of feed evaluation.](https://github.com/jvail/dairy.js/raw/master/doc/Baldinger_2015.pdf)
 Advances in Animal Biosciences, 6, pp 3-5. doi:10.1017/S2040470014000387. 
 
 ## License
