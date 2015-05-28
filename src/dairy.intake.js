@@ -427,17 +427,17 @@ var GSR = function (QI_c, DEF, PLPOT, p, BWC, FVF) {
   
   Continuous grazing:
   H -> HI_r_ssh
-  HI_r_ssh, HI_v -> HI_G1
-  HI_r_tap, HI_r_ssh, HI_v -> HI_G2
-  HI_G1, HI_G2 -> HI_G
+  HI_r_ssh, HI_v -> HI_g1
+  HI_r_tap, HI_r_ssh, HI_v -> HI_g2
+  HI_g1, HI_g2 -> HI_g
 
 
   Rotational grazing:
   A, HM_2, HGR, RT, NCow -> HA_2
   HA_2, HI_v -> HA_r -> HI_r_ha
-  HI_r_ha, HI_v -> HI_G1
-  HI_r_tap, HI_r_ha, HI_v -> HI_G2
-  HI_G1, HI_G2 -> HI_G
+  HI_r_ha, HI_v -> HI_g1
+  HI_r_tap, HI_r_ha, HI_v -> HI_g2
+  HI_g1, HI_g2 -> HI_g
 */
 
 
@@ -450,11 +450,11 @@ var GSR = function (QI_c, DEF, PLPOT, p, BWC, FVF) {
   HM_2  [kg (DM) ha-1]  pre-grazing herbage mass above 2 cm ground level
   HGR   [kg (DM) ha-1]  daily herbage growth rate
   RT    [day]           residence time in the paddock
-  NCow  [#]             number of cows in the herds  
-  
+  NCow  [#]             number of cows in the herds
+  TAP   [h day-1]       time at pasture
 */
  
-var HI_rg = function (IC, FV_h, H, HM_2, HGR, RT, NCow, TAP) {
+var HI_rg = function (IC, FV_h, A, H, HM_2, HGR, RT, NCow, TAP) {
 
   var HI_v_ = HI_v(IC, FV_h)
     , HA_2_ = HA_2(A, HM_2, HGR, RT, NCow)
@@ -462,11 +462,11 @@ var HI_rg = function (IC, FV_h, H, HM_2, HGR, RT, NCow, TAP) {
     , HI_r_ha_ = HI_r_ha(HA_r_)
     , VI_max_ = VI_max(H)
     , HI_r_tap_ = HI_r_tap(TAP, VI_max_)
-    , HI_G1_ = HI_G1(HI_v_, HI_r_ha_)
-    , HI_G2_ = HI_G2(HI_v_, HI_r_tap_, HI_r_ha_)
+    , HI_g1_ = HI_g1(HI_v_, HI_r_ha_)
+    , HI_g2_ = HI_g2(HI_v_, HI_r_tap_, HI_r_ha_, TAP)
     ;
 
-  return HI_g(HI_G1_, HI_G2_);
+  return HI_g(HI_g1_, HI_g2_);
 
 };
 
@@ -474,13 +474,8 @@ var HI_rg = function (IC, FV_h, H, HM_2, HGR, RT, NCow, TAP) {
   HI_cg [kg (DM) day-1] herbage intake when grazing is continuous
   IC    [LFU or CFU]    intake capacity ~ DMI @ FV = 1
   FV_h  [LFU]           fill value herbage
-  A     [m2]            total area of paddock
   H     [cm]            sward surface height
-  HM_2  [kg (DM) ha-1]  pre-grazing herbage mass above 2 cm ground level
-  HGR   [kg (DM) ha-1]  daily herbage growth rate
-  RT    [day]           residence time in the paddock
-  NCow  [#]             number of cows in the herds  
-  
+  TAP   [h day-1]       time at pasture 
 */
  
 var HI_cg = function (IC, FV_h, H, TAP) {
@@ -489,11 +484,11 @@ var HI_cg = function (IC, FV_h, H, TAP) {
     , VI_max_ = VI_max(H)
     , HI_r_tap_ = HI_r_tap(TAP, VI_max_)
     , HI_r_ssh_ = HI_r_ssh(H)
-    , HI_G1_ = HI_G1(HI_v_, HI_r_ssh_)
-    , HI_G2_ = HI_G2(HI_v_, HI_r_tap_, HI_r_ssh_)
+    , HI_g1_ = HI_g1(HI_v_, HI_r_ssh_)
+    , HI_g2_ = HI_g2(HI_v_, HI_r_tap_, HI_r_ssh_, TAP)
     ;
 
-  return HI_g(HI_G1_, HI_G2);
+  return HI_g(HI_g1_, HI_g2);
 
 };
 
@@ -566,7 +561,7 @@ var HI_r_tap = function (TAP, VI_max) {
   if (TAP <= 20)
     HI_r_tap = (VI_max * TAP) - (VI_max - 0.008) * log(1 + exp(TAP - (0.845 / (VI_max - 0.008))));
 
-  return HI_r_tap;
+  return min(1, HI_r_tap);
 
 };
 
@@ -603,7 +598,7 @@ var HI_v = function (IC, FV_h) {
 
 var HA_2 = function (A, HM_2, HGR, RT, NCow) {
 
-  return A * (HM_2 + (0.5 * HGR * RT)) / (1000 * RT * NCow);
+  return A * (HM_2 + (0.5 * HGR * RT)) / (1e4 * RT * NCow);
 
 };
 
@@ -629,12 +624,12 @@ var HA_r = function (HA_2, HI_v) {
 /*
   Delagarde et al. (2011) eqs. 22,24
 
-  HI_G1   [kg (DM)] intake from grazing (limited by availability)
+  HI_g1   [kg (DM)] intake from grazing (limited by availability)
   HI_v    [kg (DM)] voluntary herbage intake
   HI_r    [-]       HI_r_ha (rotational) or HI_r_ssh (continuously)
 */
 
-var HI_G1 = function (HI_v, HI_r) {
+var HI_g1 = function (HI_v, HI_r) {
 
   return  HI_v * HI_r;
 
@@ -643,29 +638,30 @@ var HI_G1 = function (HI_v, HI_r) {
 /*
   Delagarde et al. (2011) eqs. 23,25
 
-  HI_G2     [kg (DM)] intake from grazing (limited by time at pasture)
+  HI_g2     [kg (DM)] intake from grazing (limited by time at pasture)
   HI_v      [kg (DM)] voluntary herbage intake
   HI_r_tap  [-]       relative herbage intake limited by time at pasture (0-1)
   HI_r      [-]       HI_r_ha (rotational) or HI_r_ssh (continuously)
+  TAP       [h day-1] time at pasture
 */
 
-var HI_G2 = function (HI_v, HI_r_tap, HI_r) {
+var HI_g2 = function (HI_v, HI_r_tap, HI_r, TAP) {
 
-  return  HI_v * HI_r_tap * HI_r;
+  return  HI_v * HI_r_tap * (TAP >= 20 ? HI_r : 1);
 
 };
 
 /*
   Delagarde et al. (2011) eq. 21
 
-  HI_G     [kg (DM)] intake from grazing
-  HI_G1    [kg (DM)] herbage intake (limited by limited by availability)
-  HI_G2    [kg (DM)] herbage intake (limited by limited by time at pasture)
+  HI_g     [kg (DM)] intake from grazing
+  HI_g1    [kg (DM)] herbage intake (limited by limited by availability)
+  HI_g2    [kg (DM)] herbage intake (limited by limited by time at pasture)
 */
 
-var HI_G = function (HI_G1, HI_G2) {
+var HI_g = function (HI_g1, HI_g2) {
 
-  return  min(HI_G1, HI_G2);
+  return  min(HI_g1, HI_g2);
 
 };
 
