@@ -31,8 +31,8 @@
 
 */
 
-var feed = feed || {};
-feed.feeds = [
+dairy.feed = dairy.feed || {};
+dairy.feed.feeds = [
 /*
   id []
   type []

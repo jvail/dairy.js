@@ -229,17 +229,18 @@ var get = function (cow, feeds, options) {
 
   LP.subjectTo = subjectTo;
 
-  if (ENVIRONMENT_IS_NODE)
-    return glpk.solve(LP, GLP_MSG_ALL);
-  else if (ENVIRONMENT_IS_WEB && typeof callback === 'function')
-    return glpk.postMessage({ lp: LP, msg_lev: GLP_MSG_DBG });
-  else
-    return null;
+  if (ENVIRONMENT_IS_NODE) {
+    return { lp: LP, glpk: glpk.solve(LP, GLP_MSG_ALL) };
+  } else if (ENVIRONMENT_IS_WEB && typeof callback === 'function') {
+    glpk.postMessage({ lp: LP, msg_lev: GLP_MSG_DBG })
+    return LP;
+  }
 
 };
 
 return {
-  get: get
+  get: get,
+  glpk: glpk
 };
 
 }());

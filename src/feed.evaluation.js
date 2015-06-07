@@ -84,9 +84,9 @@
   Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
 */
 
-var feed = feed || {};
+dairy.feed = dairy.feed || {};
 
-feed.evaluation = (function () {
+dairy.feed.evaluation = (function () {
 
 /*
   The German system of feed evaluation is described in GfE (2001)
