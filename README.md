@@ -23,6 +23,8 @@ Potential use cases range from simulation, decision support, education, rapid mo
 
 ## References
 
+Application note: An open-source JavaScript library to simulate dairy cows and young stock, their growth, requirements and diets
+
 Vaillant, J. and Baldinger, L. 2014.
 [dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.](https://github.com/jvail/dairy.js/raw/master/doc/Vaillant_Poster_LiveM_Bilbao.pdf)
 Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
