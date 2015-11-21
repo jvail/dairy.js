@@ -23,6 +23,7 @@ Potential use cases range from simulation, decision support, education, rapid mo
 
 ## References
 
+Vaillant, J. and Baldinger, L. 2016.
 Application note: An open-source JavaScript library to simulate dairy cows and young stock, their growth, requirements and diets
 
 Vaillant, J. and Baldinger, L. 2014.
