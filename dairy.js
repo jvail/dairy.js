@@ -30,15 +30,12 @@
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+  Any publication for which this file or a derived work is used must include an a reference to:
 
-  Vaillant, J. and Baldinger, L. 2014. 
-  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
-  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
-
-  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
-  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
-  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+  Vaillant, J. and Baldinger, L. 2016. 
+  Application note: An open-source JavaScript library to simulate dairy cows and young stock,
+  their growth, requirements and diets.
+  Computers and Electronics in Agriculture, Volume 120, January 2016, Pages 7–9
 
   TODO:
   - reference for "DAYS_ZERO_MOBILIZATION_AFTER_MILK_PEAK"
@@ -357,15 +354,12 @@ return {
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+  Any publication for which this file or a derived work is used must include an a reference to:
 
-  Vaillant, J. and Baldinger, L. 2014. 
-  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
-  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
-
-  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
-  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
-  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+  Vaillant, J. and Baldinger, L. 2016. 
+  Application note: An open-source JavaScript library to simulate dairy cows and young stock,
+  their growth, requirements and diets.
+  Computers and Electronics in Agriculture, Volume 120, January 2016, Pages 7–9
 */
 
 var dairy = dairy || {};
@@ -617,15 +611,12 @@ return {
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+  Any publication for which this file or a derived work is used must include an a reference to:
 
-  Vaillant, J. and Baldinger, L. 2014. 
-  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
-  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
-
-  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
-  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
-  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+  Vaillant, J. and Baldinger, L. 2016. 
+  Application note: An open-source JavaScript library to simulate dairy cows and young stock,
+  their growth, requirements and diets.
+  Computers and Electronics in Agriculture, Volume 120, January 2016, Pages 7–9
 
   TODO
 
@@ -942,15 +933,12 @@ return {
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+  Any publication for which this file or a derived work is used must include an a reference to:
 
-  Vaillant, J. and Baldinger, L. 2014. 
-  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
-  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
-
-  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
-  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
-  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+  Vaillant, J. and Baldinger, L. 2016. 
+  Application note: An open-source JavaScript library to simulate dairy cows and young stock,
+  their growth, requirements and diets.
+  Computers and Electronics in Agriculture, Volume 120, January 2016, Pages 7–9
   
   TODO
   
@@ -1321,15 +1309,12 @@ return {
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+  Any publication for which this file or a derived work is used must include an a reference to:
 
-  Vaillant, J. and Baldinger, L. 2014. 
-  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
-  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
-
-  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
-  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
-  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+  Vaillant, J. and Baldinger, L. 2016. 
+  Application note: An open-source JavaScript library to simulate dairy cows and young stock,
+  their growth, requirements and diets.
+  Computers and Electronics in Agriculture, Volume 120, January 2016, Pages 7–9
 
   TODO
 
@@ -1979,15 +1964,12 @@ return {
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+  Any publication for which this file or a derived work is used must include an a reference to:
 
-  Vaillant, J. and Baldinger, L. 2014. 
-  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
-  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
-
-  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
-  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
-  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+  Vaillant, J. and Baldinger, L. 2016. 
+  Application note: An open-source JavaScript library to simulate dairy cows and young stock,
+  their growth, requirements and diets.
+  Computers and Electronics in Agriculture, Volume 120, January 2016, Pages 7–9
 */
  
 var dairy = dairy || {};
@@ -2411,15 +2393,12 @@ return {
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+  Any publication for which this file or a derived work is used must include an a reference to:
 
-  Vaillant, J. and Baldinger, L. 2014. 
-  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
-  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
-
-  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
-  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
-  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+  Vaillant, J. and Baldinger, L. 2016. 
+  Application note: An open-source JavaScript library to simulate dairy cows and young stock,
+  their growth, requirements and diets.
+  Computers and Electronics in Agriculture, Volume 120, January 2016, Pages 7–9
 */
 
 var dairy = dairy || {};
@@ -3844,15 +3823,12 @@ return {
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+  Any publication for which this file or a derived work is used must include an a reference to:
 
-  Vaillant, J. and Baldinger, L. 2014. 
-  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
-  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
-
-  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
-  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
-  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
+  Vaillant, J. and Baldinger, L. 2016. 
+  Application note: An open-source JavaScript library to simulate dairy cows and young stock,
+  their growth, requirements and diets.
+  Computers and Electronics in Agriculture, Volume 120, January 2016, Pages 7–9
 */
 
 dairy.feed = dairy.feed || {};
@@ -4459,15 +4435,12 @@ return {
 
   Distributed under the MIT License. See accompanying file LICENSE or copy at http://opensource.org/licenses/MIT
 
-  Any publication for which this file or a derived work is used must include an a reference to at least one source:
+  Any publication for which this file or a derived work is used must include an a reference to:
 
-  Vaillant, J. and Baldinger, L. 2014. 
-  dairy.js - an open-source JavaScript library for simulation of dairy cow herds and rapid model prototyping.
-  Poster presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain.
-
-  Baldinger, L., Vaillant, J., Zollitsch, W. and Rinne, M. 2014.
-  Making a decision support system for dairy farmers usable throughout Europe - the challenge of feed evaluation.
-  Oral presentation at the International Livestock Modelling and Research Colloquium, 14-16 October, Bilbao, Spain..
+  Vaillant, J. and Baldinger, L. 2016. 
+  Application note: An open-source JavaScript library to simulate dairy cows and young stock,
+  their growth, requirements and diets.
+  Computers and Electronics in Agriculture, Volume 120, January 2016, Pages 7–9
 
 */
 
