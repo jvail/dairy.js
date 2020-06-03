@@ -13,7 +13,7 @@ dairy.js is a JavaScript library covering routines to simulate dairy cow herds o
   * herd structure
   * diet (LP/glpk.js)
   
-Examples and use-case tested with the latest (09.2014) Firefox & Chrome browser are available at http://jvail.github.io/dairy.js/ and https://zalf-lse.github.io/solid-dss/. We welcome any contribution to the library (e.g. adding other ruminants like sheep and/or other evaluation systems).
+Examples and use-case tested with the latest (09.2014) Firefox & Chrome browser are available at http://jvail.github.io/dairy.js/ and https://jvail.github.io/solid-dss/. We welcome any contribution to the library (e.g. adding other ruminants like sheep and/or other evaluation systems).
 
 ## Scope & Limitations
 
